@@ -229,7 +229,7 @@
       seasonHits += hits;
       seasonABs += abs;
       currentAlpha += hits;
-      currentBeta += abs;
+      currentBeta += (abs - hits); // Corrected: add outs (failures), not total ABs
       gamesPlayed += 10;
 
       const rawAvg = (seasonHits / seasonABs).toFixed(3);
