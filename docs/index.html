@@ -104,9 +104,10 @@
     </section>
 
     <!-- Game Log History -->
-    <section class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+     <section class="bg-slate-900 border border-slate-800 rounded-xl p-4">
       <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide block mb-2">Season Trajectory</span>
-      <div id="logContainer" class="space-y-1.5 max-h-36 overflow-y-auto text-xs font-mono text-slate-400 divide-y divide-slate-800/40">
+      <!-- Added 'pr-3' to ensure clearance from the scrollbar -->
+      <div id="logContainer" class="space-y-1.5 max-h-36 overflow-y-auto pr-3 text-xs font-mono text-slate-400 divide-y divide-slate-800/40">
         <div class="text-[11px] text-slate-600 italic">No games played yet. Season opens on Opening Day.</div>
       </div>
     </section>
@@ -264,15 +265,19 @@
       document.getElementById('statAlphaBeta').innerText = `α: ${Math.round(currentAlpha)} | β: ${Math.round(currentBeta)}`;
       document.getElementById('statGames').innerText = gamesPlayed;
 
-      // Render history log
+            // Render history log with added spacing
       const logContainer = document.getElementById('logContainer');
       if (logHistory.length === 0) {
         logContainer.innerHTML = `<div class="text-[11px] text-slate-600 italic">No games played yet. Season opens on Opening Day.</div>`;
       } else {
         logContainer.innerHTML = logHistory.map(entry => `
           <div class="flex justify-between items-center py-1 text-[11px]">
-            <span class="text-slate-300">G${entry.games}: ${entry.segment}</span>
-            <span class="text-slate-500">Raw: <span class="text-slate-300">${entry.raw}</span> | Bayes: <span class="text-emerald-400 font-semibold">${entry.bayes}</span></span>
+            <span class="text-slate-300 shrink-0">G${entry.games}: ${entry.segment}</span>
+            <div class="flex items-center space-x-3 text-slate-500">
+              <span>Raw: <span class="text-slate-300">${entry.raw}</span></span>
+              <span class="text-slate-700">|</span>
+              <span>Bayes: <span class="text-emerald-400 font-semibold">${entry.bayes}</span></span>
+            </div>
           </div>
         `).join('');
       }
