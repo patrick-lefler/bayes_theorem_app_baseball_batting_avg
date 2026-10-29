@@ -153,7 +153,7 @@ The application is engineered as a **self-contained, zero-dependency single-file
 ┌────────────────────────────────────────────────────────┐
 │                      index.html                        │
 ├────────────────────────────────┬───────────────────────┤
-│ Structure & Visual Presentation │ Tailwind CSS (via CDN)│
+│ Structure & Visual Presentation│ Tailwind CSS (via CDN)│
 ├────────────────────────────────┼───────────────────────┤
 │ Graphic Rendering Engine       │ Chart.js (via CDN)    │
 ├────────────────────────────────┼───────────────────────┤
