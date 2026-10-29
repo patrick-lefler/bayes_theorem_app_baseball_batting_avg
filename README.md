@@ -31,7 +31,7 @@ Consider a veteran hitter with a career baseline average of **.300**. The season
 │ Raw Metric:       .395  (Volatile, small sample: 76 ABs)    │
 │ Prior Baseline:   .300  (Durable, large sample: 500 ABs)    │
 │                                                             │
-│ What is the player's true underlying talent level today?     │
+│ What is the player's true underlying talent level today?    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
