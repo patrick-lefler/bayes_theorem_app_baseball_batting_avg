@@ -224,12 +224,13 @@
       render();
     }
 
+    
     function addWindow(hits, abs) {
       if (gamesPlayed >= 160) return;
       seasonHits += hits;
       seasonABs += abs;
       currentAlpha += hits;
-      currentBeta += abs;
+      currentBeta += (abs - hits); // Corrected: add outs (failures), not total ABs
       gamesPlayed += 10;
 
       const rawAvg = (seasonHits / seasonABs).toFixed(3);
@@ -244,6 +245,7 @@
 
       render();
     }
+    
 
     function render() {
       // Evaluate distributions across x-axis
