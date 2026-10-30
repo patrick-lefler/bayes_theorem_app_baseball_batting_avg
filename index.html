@@ -1,38 +1,9 @@
-Looking closely at your screenshot, two revealing symptoms pinpoint exactly what went wrong:
-
-1. 8 True | 0 False (and 0.0% False Alarm Ratio): Out of 10,000 events, exactly 0 false alarms were generated.
-2. The 8 Red Dots are Bunched in a Straight Line at the Top-Left Corner: If you look at row 0, columns 0 through 7 on the canvas, the 8 true breach alerts were drawn consecutively in a horizontal row right next to each other.
-
-The Root Cause
-
-This happens when eventPopulation stops generating after the malicious loop or fails during the generation of the 9,990 benign events:
-
-1. Why they are lined up in a row: The 10 malicious items are generated first into positions 0..9. In your active file, the script either broke or failed before/during the array-shuffling loop, leaving the 8 triggered alerts sitting unshuffled in slots 0 through 7.
-2. Why there are 0 False Alarms: The loop generating the 9,990 benign events either received fpr = 0 / NaN or threw an error before completing, so no benign events ever got flagged as alarms.
-3. Why Resample didn't fix it: The resampleBtn event listener was only wired to call generatePopulation(), which relied on the existing state rather than re-reading the input fields, trapping the canvas in that state.
-
-The Fix
-
-The population generator and resample logic have been rewritten to make them defensive and robust:
-
-1. Unified Sampling Loop: Instead of generating malicious items first and benign items second (which requires a shuffle), each of the 10,000 cells directly evaluates its state in place based on the true base rate (P(H_1)), sensitivity (\text{TPR}), and false positive rate (\text{FPR}). This guarantees proper, random 2D scattering across the entire canvas with zero risk of unshuffled clumping.
-2. Always-Fresh Parameter Binding: generatePopulation() directly checks and parses the current input values so clicking ↺ Resample immediately recalculates against the actual inputs.
-3. Defensive Canvas Redraw: Enforces explicit width and height checks before drawing so the canvas renders reliably.
-
-Download the Fixed File
-
-⚬ Download Fixed index.html
-
-Full Raw Code (index.html)
-
-You can copy and paste this code directly into your repository's index.html:
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Bayes in the SOC: Alert Triage & Signal Detection</title>
+  <title>Bayes at the Plate: Empirical Bayes Batting Average Tracker</title>
   <style>
     /* Reset & Base Setup */
     *, *::before, *::after {
@@ -53,7 +24,7 @@ You can copy and paste this code directly into your repository's index.html:
     }
     main {
       width: 100%;
-      max-width: 460px;
+      max-width: 480px;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -71,7 +42,7 @@ You can copy and paste this code directly into your repository's index.html:
       font-size: 20px;
       font-weight: 700;
       letter-spacing: -0.02em;
-      color: #34d399; /* emerald-400 */
+      color: #38bdf8; /* sky-400 */
     }
     .header-tag {
       font-size: 11px;
@@ -110,7 +81,7 @@ You can copy and paste this code directly into your repository's index.html:
     }
     .tab-btn.active {
       background-color: #1e293b;
-      color: #34d399;
+      color: #38bdf8;
       box-shadow: 0 1px 3px rgba(0,0,0,0.3);
     }
 
@@ -160,14 +131,14 @@ You can copy and paste this code directly into your repository's index.html:
     .btn-subtle:hover { color: #e2e8f0; }
 
     /* Inputs & Select */
-    .grid-3 {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 10px;
-    }
     .grid-2 {
       display: grid;
       grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 10px;
     }
     label {
@@ -188,7 +159,7 @@ You can copy and paste this code directly into your repository's index.html:
       outline: none;
     }
     input[type="number"]:focus, select:focus {
-      border-color: #10b981;
+      border-color: #38bdf8;
     }
 
     /* Stats Grid */
@@ -210,7 +181,7 @@ You can copy and paste this code directly into your repository's index.html:
       letter-spacing: 0.05em;
     }
     .stat-value {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 700;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       color: #e2e8f0;
@@ -221,14 +192,13 @@ You can copy and paste this code directly into your repository's index.html:
       color: #64748b;
     }
 
-    /* Canvas Section */
+    /* Distribution Canvas */
     .canvas-container {
       width: 100%;
-      height: 200px;
+      height: 210px;
       background-color: #020617;
       border-radius: 8px;
       border: 1px solid #1e293b;
-      overflow: hidden;
       position: relative;
     }
     canvas {
@@ -249,138 +219,33 @@ You can copy and paste this code directly into your repository's index.html:
       align-items: center;
       gap: 6px;
     }
-    .dot {
+    .dot-legend {
       width: 8px;
       height: 8px;
-      border-radius: 50%;
+      border-radius: 2px;
       display: inline-block;
     }
-    .dot-pulse {
-      background-color: #f43f5e;
-      box-shadow: 0 0 6px rgba(244, 63, 94, 0.8);
-    }
-    .dot-amber { background-color: #fbbf24; }
-    .dot-slate { background-color: #475569; width: 6px; height: 6px; }
 
-    /* Gradient Meter */
-    .meter-track {
-      width: 100%;
-      height: 12px;
-      background-color: #020617;
-      border: 1px solid #1e293b;
-      border-radius: 9999px;
-      position: relative;
-      overflow: hidden;
-      padding: 1px;
-    }
-    .meter-fill {
-      height: 100%;
-      border-radius: 9999px;
-      background: linear-gradient(to right, #10b981 0%, #fbbf24 50%, #f43f5e 85%, #e11d48 100%);
-      transition: width 0.4s ease-out;
-      min-width: 4px;
-    }
-    .meter-ticks {
-      display: flex;
-      justify-content: space-between;
-      font-size: 10px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      color: #64748b;
-      padding: 0 2px;
-    }
-
-    /* Posture Callout */
-    .posture-box {
-      background-color: rgba(2, 6, 23, 0.7);
-      border: 1px solid #1e293b;
+    /* Quick Action Buttons */
+    .btn-sample {
+      background-color: #1e293b;
+      border: 1px solid #334155;
       border-radius: 8px;
-      padding: 10px 12px;
-      display: flex;
-      gap: 10px;
-      align-items: flex-start;
-    }
-    .posture-icon { font-size: 16px; line-height: 1; margin-top: 2px; }
-    .posture-title { font-size: 12px; font-weight: 600; color: #f8fafc; }
-    .posture-desc { font-size: 11px; color: #94a3b8; line-height: 1.4; margin-top: 2px; }
-
-    /* Evidence Action Buttons */
-    .btn-action {
-      background-color: rgba(76, 5, 25, 0.35);
-      border: 1px solid rgba(159, 18, 57, 0.5);
-      border-radius: 8px;
-      padding: 10px;
-      text-align: left;
+      padding: 8px;
+      font-size: 11px;
+      font-family: ui-monospace, monospace;
+      color: #f1f5f9;
       cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
+      text-align: center;
       transition: all 0.15s ease;
     }
-    .btn-action:hover { background-color: rgba(136, 19, 55, 0.5); }
-    .btn-action:active { transform: scale(0.98); }
-    .btn-action.exonerate {
-      background-color: rgba(12, 44, 75, 0.35);
-      border-color: rgba(3, 105, 161, 0.5);
+    .btn-sample:hover {
+      background-color: #334155;
+      border-color: #475569;
     }
-    .btn-action.exonerate:hover { background-color: rgba(14, 116, 144, 0.5); }
-    .btn-action-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
+    .btn-sample:active {
+      transform: scale(0.98);
     }
-    .btn-action-name {
-      font-size: 12px;
-      font-weight: 600;
-      color: #fda4af;
-    }
-    .btn-action.exonerate .btn-action-name { color: #7dd3fc; }
-    .btn-action-lr {
-      font-size: 11px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-weight: 700;
-      color: #f43f5e;
-    }
-    .btn-action.exonerate .btn-action-lr { color: #38bdf8; }
-    .btn-action-desc {
-      font-size: 10px;
-      color: rgba(248, 250, 252, 0.6);
-      line-height: 1.25;
-    }
-
-    /* Audit Ledger */
-    .audit-container {
-      max-height: 140px;
-      overflow-y: auto;
-      padding-right: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .audit-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 11px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      padding-bottom: 6px;
-      border-bottom: 1px solid rgba(30, 41, 59, 0.5);
-    }
-    .audit-left { display: flex; flex-direction: column; }
-    .audit-step { color: #f1f5f9; font-weight: 600; }
-    .audit-detail { font-size: 10px; color: #64748b; }
-    .audit-right {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: #64748b;
-      white-space: nowrap;
-    }
-    .audit-prob { color: #34d399; font-weight: 600; }
-
-    /* Custom Scrollbar */
-    .audit-container::-webkit-scrollbar { width: 6px; }
-    .audit-container::-webkit-scrollbar-track { background: #020617; border-radius: 4px; }
-    .audit-container::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
 
     /* Guide & Documentation Tab Styles */
     .docs-section {
@@ -394,7 +259,7 @@ You can copy and paste this code directly into your repository's index.html:
     .docs-h2 {
       font-size: 13px;
       font-weight: 700;
-      color: #34d399;
+      color: #38bdf8;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       margin-bottom: 2px;
@@ -402,7 +267,7 @@ You can copy and paste this code directly into your repository's index.html:
     .docs-callout {
       background-color: #020617;
       border: 1px solid #1e293b;
-      border-left: 3px solid #34d399;
+      border-left: 3px solid #38bdf8;
       border-radius: 6px;
       padding: 10px 12px;
       font-size: 11px;
@@ -432,10 +297,10 @@ You can copy and paste this code directly into your repository's index.html:
     <!-- Header -->
     <header>
       <div class="header-top">
-        <h1>Bayes in the SOC</h1>
-        <span class="header-tag">Odds & Likelihood</span>
+        <h1>Bayes at the Plate</h1>
+        <span class="header-tag">Beta-Binomial</span>
       </div>
-      <p class="subtitle">Sequential Bayesian triage & noise suppression across 10,000 endpoint events.</p>
+      <p class="subtitle">Conjugate updating & empirical shrinkage for true batting talent estimation.</p>
     </header>
 
     <!-- Tab Navigation -->
@@ -444,502 +309,58 @@ You can copy and paste this code directly into your repository's index.html:
       <button id="tabBtnDocs" class="tab-btn" onclick="switchTab('docs')">Guide & Math</button>
     </nav>
 
-    <!-- TAB 1: SIMULATOR -->
+    <!-- ==================== TAB 1: SIMULATOR ==================== -->
     <div id="viewSim" style="display: flex; flex-direction: column; gap: 16px;">
-      <!-- Base Configuration Card -->
+      
+      <!-- Prior Baseline Setup Card -->
       <section class="card">
         <div class="card-header">
-          <span class="card-title">Environment Baseline</span>
-          <button id="resetBtn" class="btn-link">Reset Simulation</button>
+          <span class="card-title">League / Player Prior (Beta Distribution)</span>
+          <button id="resetPriorBtn" class="btn-link">Reset Baseline</button>
         </div>
 
         <div class="grid-3">
           <div>
-            <label>Base Rate P(H₁)</label>
-            <select id="priorSelect">
-              <option value="0.0005">0.05% (5/10k)</option>
-              <option value="0.001" selected>0.10% (10/10k)</option>
-              <option value="0.005">0.50% (50/10k)</option>
-              <option value="0.01">1.00% (100/10k)</option>
+            <label>Archetype Preset</label>
+            <select id="priorPreset">
+              <option value="league" selected>MLB League Avg (75/225)</option>
+              <option value="elite">All-Star Hitter (90/210)</option>
+              <option value="uninformative">Flat / Uniform (1/1)</option>
+              <option value="custom">Custom α / β</option>
             </select>
           </div>
           <div>
-            <label>Sensitivity (TPR)</label>
-            <input type="number" id="sensorTPR" step="1" min="80" max="100" value="95">
+            <label>Prior Hits (α₀)</label>
+            <input type="number" id="priorAlpha" step="1" min="1" max="500" value="75">
           </div>
           <div>
-            <label>False Pos. (FPR)</label>
-            <input type="number" id="sensorFPR" step="0.1" min="0.1" max="10.0" value="1.0">
+            <label>Prior Outs (β₀)</label>
+            <input type="number" id="priorBeta" step="1" min="1" max="1000" value="225">
           </div>
         </div>
       </section>
 
-      <!-- Key Metrics Ribbon -->
-      <section class="grid-3">
-        <div class="stat-box">
-          <span class="stat-label">Triggered Alerts</span>
-          <span id="statAlertCount" class="stat-value">109</span>
-          <span id="statAlertBreakdown" class="stat-sub">10 True | 99 False</span>
-        </div>
-        <div class="stat-box">
-          <span class="stat-label">Noise Disparity</span>
-          <span id="statNoiseRatio" class="stat-value" style="color: #fbbf24;">90.8%</span>
-          <span class="stat-sub">False Alarm Ratio</span>
-        </div>
-        <div class="stat-box" style="border-color: rgba(5, 150, 105, 0.4);">
-          <span class="stat-label" style="color: #34d399;">Current Posture</span>
-          <span id="statCurrentP" class="stat-value" style="color: #34d399;">8.8%</span>
-          <span id="statOddsRatio" class="stat-sub">Odds: 1 : 10.4</span>
-        </div>
-      </section>
-
-      <!-- Fleet Event Matrix (10,000 Points Canvas) -->
-      <section class="card" style="padding: 12px;">
-        <div class="card-header">
-          <span class="card-title">Fleet Activity (10,000 Events / Hour)</span>
-          <button id="resampleBtn" class="btn-subtle">↺ Resample</button>
-        </div>
-        
-        <div class="canvas-container">
-          <canvas id="matrixCanvas"></canvas>
-        </div>
-
-        <div class="legend-row">
-          <span class="legend-item">
-            <span class="dot dot-pulse"></span> True Breach Alert
-          </span>
-          <span class="legend-item">
-            <span class="dot dot-amber"></span> False Alarm
-          </span>
-          <span class="legend-item" style="color: #64748b;">
-            <span class="dot dot-slate"></span> Benign (9.8k+)
-          </span>
-        </div>
-      </section>
-
-      <!-- Fluid Action Gradient Gauge -->
+      <!-- Current Season Evidence Card -->
       <section class="card">
         <div class="card-header">
-          <span class="card-title">Operational Decision Gradient</span>
-          <span id="actionLabel" style="font-size: 11px; font-family: ui-monospace, monospace; font-weight: 600; color: #fbbf24;">Information Demand State</span>
-        </div>
-
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <div class="meter-track">
-            <div id="gradientBar" class="meter-fill" style="width: 8.8%;"></div>
-          </div>
-          
-          <div class="meter-ticks">
-            <span>0% Noise Floor</span>
-            <span>1%</span>
-            <span>50% Defensive Parity</span>
-            <span>85% Incident</span>
-            <span>100%</span>
-          </div>
-        </div>
-
-        <!-- Dynamic Posture Recommendation -->
-        <div class="posture-box">
-          <span id="postureIcon" class="posture-icon">🔍</span>
-          <div>
-            <span id="postureTitle" class="posture-title">Information Collection Optimal</span>
-            <p id="postureDesc" class="posture-desc">
-              Initial sensor elevated probability from 0.1% to 8.8%. Prior base rate still dominates. Gather corroborating forensic evidence before considering host containment.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <!-- Sequential Diagnostic Evidence Deck -->
-      <section class="card">
-        <div class="card-header">
-          <span class="card-title">Investigative Evidence (Likelihood Ratios)</span>
-          <button id="resetAlertBtn" class="btn-subtle">Reset to Initial Alert</button>
+          <span class="card-title">Observed Sample (In-Season Evidence)</span>
+          <span style="font-size: 11px; font-family: ui-monospace, monospace; color: #94a3b8;" id="sampleRawBA">Observed BA: .400</span>
         </div>
 
         <div class="grid-2">
-          <button id="btnIncrimProcess" class="btn-action">
-            <div class="btn-action-top">
-              <span class="btn-action-name">Host Process Check</span>
-              <span class="btn-action-lr">LR: 25.0×</span>
-            </div>
-            <span class="btn-action-desc">Unsigned PowerShell spawned via Office macro</span>
-          </button>
-
-          <button id="btnIncrimIntel" class="btn-action">
-            <div class="btn-action-top">
-              <span class="btn-action-name">Threat Intel Match</span>
-              <span class="btn-action-lr">LR: 16.0×</span>
-            </div>
-            <span class="btn-action-desc">IP registered &lt;24h ago in known C2 ASN</span>
-          </button>
-
-          <button id="btnExonCert" class="btn-action exonerate">
-            <div class="btn-action-top">
-              <span class="btn-action-name">Vendor Cert Chain</span>
-              <span class="btn-action-lr">LR: 0.024×</span>
-            </div>
-            <span class="btn-action-desc">Verified Microsoft/AWS telemetry certificate</span>
-          </button>
-
-          <button id="btnExonSchedule" class="btn-action exonerate">
-            <div class="btn-action-top">
-              <span class="btn-action-name">Approved IT Job</span>
-              <span class="btn-action-lr">LR: 0.071×</span>
-            </div>
-            <span class="btn-action-desc">Aligned with automated SCCM patch cycle</span>
-          </button>
-        </div>
-      </section>
-
-      <!-- Audit Ledger -->
-      <section class="card">
-        <span class="card-title">Audit Ledger (Log-Odds Chain)</span>
-        <div id="auditLog" class="audit-container"></div>
-      </section>
-    </div>
-
-    <!-- TAB 2: GUIDE & MATH -->
-    <div id="viewDocs" style="display: none; flex-direction: column; gap: 16px;">
-      <section class="card docs-section">
-        <h2 class="docs-h2">1. The Mystery: The Fire Alarm Paradox</h2>
-        <p>
-          Security vendors proudly advertise their alarm tools as <strong>"95% accurate"</strong>. Yet when analysts arrive at work, over <strong>90% of alerts are false alarms</strong>. Why?
-        </p>
-        <div class="docs-callout">
-          <strong>The Popcorn Analogy:</strong> Imagine a school fire alarm that catches 95% of real fires and only makes a mistake 1% of the time on normal days. Because actual school fires are extremely rare (maybe 1 day in 1,000), that 1% mistake happens across 999 normal days. Almost every time the alarm screams, someone simply burnt popcorn!
-        </div>
-        <p>
-          This is called the <strong>Base Rate Fallacy</strong>: when genuine bad events are rare, even a tiny false-alarm rate will overwhelm your team with noise.
-        </p>
-      </section>
-
-      <section class="card docs-section">
-        <h2 class="docs-h2">2. What the 10,000-Dot Canvas Shows</h2>
-        <p>
-          The <strong>Fleet Activity</strong> grid is an icon array representing 10,000 events happening across a company network in a single hour:
-        </p>
-        <ul class="docs-list">
-          <li><strong>Dark Slate Pixels (9,890+):</strong> Normal, innocent computer traffic that passed silently with no alarm.</li>
-          <li><strong>Amber Pixels (~100):</strong> Harmless programs (like software patches or Spotify) that tripped the alarm by accident (False Alarms).</li>
-          <li><strong>Flashing Pink Pixels (~10):</strong> Real hacker or ransomware intrusions caught by the sensor (True Alerts).</li>
-        </ul>
-        <p>
-          Notice how the amber dots outnumber the pink dots 10 to 1. That is why an initial alert only has an ~8% to 9% chance of being real!
-        </p>
-      </section>
-
-      <section class="card docs-section">
-        <h2 class="docs-h2">3. The Math: Bayes' Odds Formulation</h2>
-        <p>
-          Instead of messy fractions, this app calculates Bayes' Theorem using <strong>Odds</strong> and <strong>Likelihood Ratios (LR)</strong>:
-        </p>
-        <div class="docs-formula">
-          Posterior Odds = Prior Odds × Likelihood Ratio (LR)
-        </div>
-        <p>
-          <strong>Step 1: The Base Rate (Prior Odds)</strong><br>
-          With a 0.10% breach rate (1 in 1,000), the starting odds are:
-        </p>
-        <div class="docs-formula" style="font-size: 11px;">
-          Prior Odds = 0.001 / 0.999 ≈ 0.001001 (1 : 999)
-        </div>
-        <p>
-          <strong>Step 2: The Initial Sensor Alert (LR = 95×)</strong><br>
-          With 95% sensitivity (TPR) and 1.0% false alarm rate (FPR):
-        </p>
-        <div class="docs-formula" style="font-size: 11px;">
-          LR = 0.95 / 0.01 = 95.0×<br>
-          Updated Odds = 0.001001 × 95.0 = 0.0951 (Odds: 1 : 10.5)<br>
-          Probability = 0.0951 / (1 + 0.0951) = 8.68%
-        </div>
-        <p>
-          <strong>Step 3: Sequential Clues (The Diagnostic Deck)</strong><br>
-          Every investigative clue you click simply multiplies the current odds:
-        </p>
-        <ul class="docs-list">
-          <li><strong>LR &gt; 1 (Incriminating):</strong> Multiplies odds upward (e.g., Host Process × 25.0).</li>
-          <li><strong>LR &lt; 1 (Exonerating):</strong> Multiplies odds downward (e.g., Vendor SSL × 0.024).</li>
-        </ul>
-      </section>
-
-      <section class="card docs-section">
-        <h2 class="docs-h2">4. The Operational Decision Gradient</h2>
-        <p>
-          Real cybersecurity isn't about red or green stoplights; it's about <strong>cost and action thresholds</strong>:
-        </p>
-        <ul class="docs-list">
-          <li><strong>Noise Floor (&lt; 1%):</strong> Probability is negligible. The cost of an analyst checking the computer exceeds the risk. Auto-dismiss!</li>
-          <li><strong>Information Demand (1% - 50%):</strong> Elevated signal, but unconfirmed. Do not disconnect the user yet; run quick forensic checks!</li>
-          <li><strong>Defensive Intervention (50% - 85%):</strong> Parity crossed. The risk of uncontained ransomware spread now exceeds temporary user disruption. Quarantine the machine!</li>
-          <li><strong>Active Incident (&gt; 85%):</strong> Breach confirmed beyond reasonable doubt. Launch full incident response.</li>
-        </ul>
-      </section>
-    </div>
-  </main>
-
-  <script>
-    function switchTab(tabId) {
-      const viewSim = document.getElementById('viewSim');
-      const viewDocs = document.getElementById('viewDocs');
-      const btnSim = document.getElementById('tabBtnSim');
-      const btnDocs = document.getElementById('tabBtnDocs');
-
-      if (tabId === 'sim') {
-        viewSim.style.display = 'flex';
-        viewDocs.style.display = 'none';
-        btnSim.classList.add('active');
-        btnDocs.classList.remove('active');
-        setTimeout(drawMatrix, 50);
-      } else {
-        viewSim.style.display = 'none';
-        viewDocs.style.display = 'flex';
-        btnDocs.classList.add('active');
-        btnSim.classList.remove('active');
-      }
-    }
-
-    let baseRate = 0.001;
-    let tpr = 0.95;
-    let fpr = 0.01;
-    
-    let priorOdds = 0;
-    let initialAlertLR = 0;
-    let currentOdds = 0;
-    let stepCount = 0;
-    let auditHistory = [];
-
-    const TOTAL_EVENTS = 10000;
-    let eventPopulation = [];
-
-    function syncParams() {
-      const priorElem = document.getElementById('priorSelect');
-      const tprElem = document.getElementById('sensorTPR');
-      const fprElem = document.getElementById('sensorFPR');
-
-      baseRate = priorElem ? parseFloat(priorElem.value) : 0.001;
-      tpr = tprElem ? parseFloat(tprElem.value) / 100 : 0.95;
-      fpr = fprElem ? parseFloat(fprElem.value) / 100 : 0.01;
-
-      // Defensive guardrails
-      if (isNaN(baseRate) || baseRate <= 0) baseRate = 0.001;
-      if (isNaN(tpr) || tpr <= 0) tpr = 0.95;
-      if (isNaN(fpr) || fpr <= 0) fpr = 0.01;
-    }
-
-    function initEnvironment() {
-      syncParams();
-
-      priorOdds = baseRate / (1 - baseRate);
-      initialAlertLR = tpr / fpr;
-      currentOdds = priorOdds * initialAlertLR;
-      stepCount = 1;
-      
-      const pInitial = (currentOdds / (1 + currentOdds));
-
-      auditHistory = [{
-        step: "S1: Initial Alert Trigger",
-        detail: `LR: ${initialAlertLR.toFixed(1)}× (TPR ${Math.round(tpr*100)}% / FPR ${(fpr*100).toFixed(1)}%)`,
-        postP: (pInitial * 100).toFixed(2) + "%",
-        oddsStr: formatOdds(currentOdds)
-      }];
-
-      generatePopulation();
-      render();
-    }
-
-    function resetAlertOnly() {
-      syncParams();
-      priorOdds = baseRate / (1 - baseRate);
-      initialAlertLR = tpr / fpr;
-      currentOdds = priorOdds * initialAlertLR;
-      stepCount = 1;
-
-      const pInitial = (currentOdds / (1 + currentOdds));
-      auditHistory = [{
-        step: "S1: Initial Alert Trigger",
-        detail: `LR: ${initialAlertLR.toFixed(1)}× (Sensor Trigger)`,
-        postP: (pInitial * 100).toFixed(2) + "%",
-        oddsStr: formatOdds(currentOdds)
-      }];
-      render();
-    }
-
-    function applyEvidence(name, lr, detail) {
-      stepCount++;
-      currentOdds *= lr;
-      const pNew = currentOdds / (1 + currentOdds);
-
-      auditHistory.unshift({
-        step: `S${stepCount}: ${name}`,
-        detail: `LR: ${lr < 1 ? lr.toFixed(3) : lr.toFixed(1)}× (${detail})`,
-        postP: (pNew * 100).toFixed(2) + "%",
-        oddsStr: formatOdds(currentOdds)
-      });
-
-      render();
-    }
-
-    function formatOdds(odds) {
-      if (odds >= 1) {
-        return `${odds.toFixed(2)} : 1`;
-      } else {
-        return `1 : ${(1 / odds).toFixed(1)}`;
-      }
-    }
-
-    // Direct in-place generation: guarantees 2D scattering across all 10,000 dots
-    function generatePopulation() {
-      syncParams();
-      eventPopulation = new Array(TOTAL_EVENTS);
-
-      for (let i = 0; i < TOTAL_EVENTS; i++) {
-        const isMalicious = Math.random() < baseRate;
-        const isAlert = isMalicious ? (Math.random() < tpr) : (Math.random() < fpr);
-        eventPopulation[i] = { malicious: isMalicious, alert: isAlert };
-      }
-
-      drawMatrix();
-    }
-
-    function drawMatrix() {
-      const canvas = document.getElementById('matrixCanvas');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const container = canvas.parentElement;
-
-      const width = container.clientWidth || 430;
-      const height = container.clientHeight || 200;
-      
-      canvas.width = width * 2;
-      canvas.height = height * 2;
-      ctx.scale(2, 2);
-
-      ctx.clearRect(0, 0, width, height);
-
-      const cols = 125;
-      const rows = 80;
-      const cellW = width / cols;
-      const cellH = height / rows;
-
-      let trueAlerts = 0;
-      let falseAlerts = 0;
-
-      for (let i = 0; i < TOTAL_EVENTS; i++) {
-        const ev = eventPopulation[i];
-        const r = Math.floor(i / cols);
-        const c = i % cols;
-        const x = c * cellW;
-        const y = r * cellH;
-
-        if (ev && ev.alert) {
-          if (ev.malicious) {
-            trueAlerts++;
-            ctx.fillStyle = '#f43f5e';
-            ctx.fillRect(x - 0.5, y - 0.5, Math.max(2.5, cellW + 1), Math.max(2.5, cellH + 1));
-          } else {
-            falseAlerts++;
-            ctx.fillStyle = '#fbbf24';
-            ctx.fillRect(x, y, Math.max(1.8, cellW), Math.max(1.8, cellH));
-          }
-        } else {
-          ctx.fillStyle = '#1e293b';
-          ctx.fillRect(x + 0.3, y + 0.3, Math.max(1, cellW - 0.6), Math.max(1, cellH - 0.6));
-        }
-      }
-
-      const totalAlerts = trueAlerts + falseAlerts;
-      const noisePct = totalAlerts > 0 ? ((falseAlerts / totalAlerts) * 100).toFixed(1) : '0.0';
-
-      const alertCountElem = document.getElementById('statAlertCount');
-      const breakdownElem = document.getElementById('statAlertBreakdown');
-      const noiseElem = document.getElementById('statNoiseRatio');
-
-      if (alertCountElem) alertCountElem.innerText = totalAlerts;
-      if (breakdownElem) breakdownElem.innerText = `${trueAlerts} True | ${falseAlerts} False`;
-      if (noiseElem) noiseElem.innerText = `${noisePct}%`;
-    }
-
-    function render() {
-      const p = currentOdds / (1 + currentOdds);
-      const pPct = p * 100;
-
-      const pElem = document.getElementById('statCurrentP');
-      const oddsElem = document.getElementById('statOddsRatio');
-      if (pElem) pElem.innerText = pPct < 0.1 ? '< 0.1%' : (pPct > 99.9 ? '> 99.9%' : `${pPct.toFixed(1)}%`);
-      if (oddsElem) oddsElem.innerText = `Odds: ${formatOdds(currentOdds)}`;
-
-      const bar = document.getElementById('gradientBar');
-      if (bar) bar.style.width = `${Math.min(100, Math.max(1.5, pPct))}%`;
-
-      const actionLabel = document.getElementById('actionLabel');
-      const postureIcon = document.getElementById('postureIcon');
-      const postureTitle = document.getElementById('postureTitle');
-      const postureDesc = document.getElementById('postureDesc');
-
-      if (p < 0.01) {
-        if (actionLabel) { actionLabel.innerText = "Noise Floor Cleared"; actionLabel.style.color = "#34d399"; }
-        if (postureIcon) postureIcon.innerText = "🛡️";
-        if (postureTitle) postureTitle.innerText = "Autonomous Ticket Dismissal";
-        if (postureDesc) postureDesc.innerText = `Breach probability (${pPct.toFixed(2)}%) is below enterprise risk tolerance. Investigation cost exceeds expected loss. Safe to clear.`;
-      } else if (p < 0.50) {
-        if (actionLabel) { actionLabel.innerText = "Information Demand State"; actionLabel.style.color = "#fbbf24"; }
-        if (postureIcon) postureIcon.innerText = "🔍";
-        if (postureTitle) postureTitle.innerText = "Information Collection Optimal";
-        if (postureDesc) postureDesc.innerText = `Threat signal is elevated (${pPct.toFixed(1)}%), but prior base rate prevents hasty containment. Gather forensic artifacts before disrupting host.`;
-      } else if (p < 0.85) {
-        if (actionLabel) { actionLabel.innerText = "Defensive Intervention Parity"; actionLabel.style.color = "#fb7185"; }
-        if (postureIcon) postureIcon.innerText = "⚡";
-        if (postureTitle) postureTitle.innerText = "Precautionary Host Isolation Warranted";
-        if (postureDesc) postureDesc.innerText = `Breach probability (${pPct.toFixed(1)}%) crosses operational parity. Cost of uncontained lateral spread far exceeds temporary user friction.`;
-      } else {
-        if (actionLabel) { actionLabel.innerText = "Terminal Certainty / Active Incident"; actionLabel.style.color = "#f43f5e"; }
-        if (postureIcon) postureIcon.innerText = "🚨";
-        if (postureTitle) postureTitle.innerText = "Incident Response Escalation";
-        if (postureDesc) postureDesc.innerText = `Breach confirmed beyond reasonable doubt (${pPct.toFixed(1)}%). Sever network connectivity, preserve memory dump, and activate IR tier.`;
-      }
-
-      const auditLog = document.getElementById('auditLog');
-      if (auditLog) {
-        auditLog.innerHTML = auditHistory.map(entry => `
-          <div class="audit-row">
-            <div class="audit-left">
-              <span class="audit-step">${entry.step}</span>
-              <span class="audit-detail">${entry.detail}</span>
-            </div>
-            <div class="audit-right">
-              <span>P: <span class="audit-prob">${entry.postP}</span></span>
-              <span style="color: #334155;">|</span>
-              <span style="color: #94a3b8;">${entry.oddsStr}</span>
-            </div>
+          <div>
+            <label>Hits (H)</label>
+            <input type="number" id="obsHits" step="1" min="0" max="300" value="4">
           </div>
-        `).join('');
-      }
-    }
+          <div>
+            <label>At-Bats (AB)</label>
+            <input type="number" id="obsAB" step="1" min="1" max="700" value="10">
+          </div>
+        </div>
 
-    document.getElementById('resetBtn').addEventListener('click', initEnvironment);
-    document.getElementById('priorSelect').addEventListener('change', initEnvironment);
-    document.getElementById('sensorTPR').addEventListener('input', initEnvironment);
-    document.getElementById('sensorFPR').addEventListener('input', initEnvironment);
-    document.getElementById('resampleBtn').addEventListener('click', generatePopulation);
-    document.getElementById('resetAlertBtn').addEventListener('click', resetAlertOnly);
-
-    document.getElementById('btnIncrimProcess').addEventListener('click', () => {
-      applyEvidence("Host Process Check", 25.0, "Unsigned PowerShell / Macro");
-    });
-    document.getElementById('btnIncrimIntel').addEventListener('click', () => {
-      applyEvidence("Threat Intel Match", 16.0, "Bulletproof C2 IP / <24h domain");
-    });
-    document.getElementById('btnExonCert').addEventListener('click', () => {
-      applyEvidence("Vendor Cert Chain", 0.024, "Valid Microsoft/AWS SSL");
-    });
-    document.getElementById('btnExonSchedule').addEventListener('click', () => {
-      applyEvidence("Approved IT Job", 0.071, "Scheduled SCCM Maintenance Window");
-    });
-
-    window.addEventListener('resize', drawMatrix);
-
-    initEnvironment();
-  </script>
-</body>
-</html>
+        <!-- Quick Sample Scenarios -->
+        <div>
+          <label style="margin-bottom: 6px;">Quick Progression Windows</label>
+          <div class="grid-3">
+            <button class="btn-sample" onclick="setSample(4, 10)">Week 1 (4/10: .400)</button>
+            <button class="btn-sample" onclick="setSample
