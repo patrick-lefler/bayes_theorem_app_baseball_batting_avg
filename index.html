@@ -3,751 +3,301 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Bayes at the Plate: Empirical Bayes Batting Average Tracker</title>
-  <style>
-    /* Reset & Base Setup */
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    body {
-      background-color: #020617; /* slate-950 */
-      color: #f8fafc; /* slate-50 */
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      min-height: 100vh;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      -webkit-font-smoothing: antialiased;
-    }
-    main {
-      width: 100%;
-      max-width: 480px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    header {
-      border-bottom: 1px solid #1e293b;
-      padding-bottom: 12px;
-    }
-    .header-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-    }
-    h1 {
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      color: #38bdf8; /* sky-400 */
-    }
-    .header-tag {
-      font-size: 11px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      letter-spacing: 0.1em;
-      color: #94a3b8;
-      text-transform: uppercase;
-    }
-    .subtitle {
-      font-size: 12px;
-      color: #94a3b8;
-      margin-top: 4px;
-      line-height: 1.4;
-    }
-
-    /* Tab Switcher */
-    .tab-nav {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      background-color: #0f172a;
-      padding: 3px;
-      border-radius: 10px;
-      border: 1px solid #1e293b;
-      gap: 4px;
-    }
-    .tab-btn {
-      background: none;
-      border: none;
-      color: #94a3b8;
-      font-size: 12px;
-      font-weight: 600;
-      padding: 8px 12px;
-      border-radius: 7px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    .tab-btn.active {
-      background-color: #1e293b;
-      color: #38bdf8;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-    }
-
-    /* Cards */
-    .card {
-      background-color: #0f172a; /* slate-900 */
-      border: 1px solid #1e293b; /* slate-800 */
-      border-radius: 12px;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .card-title {
-      font-size: 11px;
-      font-weight: 600;
-      color: #94a3b8;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    /* Buttons */
-    .btn-link {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 500;
-      color: #fb7185; /* rose-400 */
-      padding: 0;
-    }
-    .btn-link:hover { color: #f43f5e; }
-    .btn-subtle {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 11px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      color: #94a3b8;
-      padding: 0;
-    }
-    .btn-subtle:hover { color: #e2e8f0; }
-
-    /* Inputs & Select */
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .grid-3 {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 10px;
-    }
-    label {
-      font-size: 11px;
-      color: #94a3b8;
-      display: block;
-      margin-bottom: 4px;
-    }
-    input[type="number"], select {
-      width: 100%;
-      background-color: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      padding: 6px 8px;
-      font-size: 12px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      color: #ffffff;
-      outline: none;
-    }
-    input[type="number"]:focus, select:focus {
-      border-color: #38bdf8;
-    }
-
-    /* Stats Grid */
-    .stat-box {
-      background-color: #0f172a;
-      border: 1px solid #1e293b;
-      border-radius: 12px;
-      padding: 10px;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 2px;
-    }
-    .stat-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      color: #94a3b8;
-      letter-spacing: 0.05em;
-    }
-    .stat-value {
-      font-size: 17px;
-      font-weight: 700;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      color: #e2e8f0;
-    }
-    .stat-sub {
-      font-size: 10px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      color: #64748b;
-    }
-
-    /* Distribution Canvas */
-    .canvas-container {
-      width: 100%;
-      height: 210px;
-      background-color: #020617;
-      border-radius: 8px;
-      border: 1px solid #1e293b;
-      position: relative;
-    }
-    canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    .legend-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 11px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      color: #94a3b8;
-      padding-top: 4px;
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .dot-legend {
-      width: 8px;
-      height: 8px;
-      border-radius: 2px;
-      display: inline-block;
-    }
-
-    /* Quick Action Buttons */
-    .btn-sample {
-      background-color: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      padding: 8px;
-      font-size: 11px;
-      font-family: ui-monospace, monospace;
-      color: #f1f5f9;
-      cursor: pointer;
-      text-align: center;
-      transition: all 0.15s ease;
-    }
-    .btn-sample:hover {
-      background-color: #334155;
-      border-color: #475569;
-    }
-    .btn-sample:active {
-      transform: scale(0.98);
-    }
-
-    /* Guide & Documentation Tab Styles */
-    .docs-section {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      font-size: 12px;
-      line-height: 1.6;
-      color: #cbd5e1;
-    }
-    .docs-h2 {
-      font-size: 13px;
-      font-weight: 700;
-      color: #38bdf8;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 2px;
-    }
-    .docs-callout {
-      background-color: #020617;
-      border: 1px solid #1e293b;
-      border-left: 3px solid #38bdf8;
-      border-radius: 6px;
-      padding: 10px 12px;
-      font-size: 11px;
-      color: #94a3b8;
-    }
-    .docs-formula {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      background-color: #020617;
-      border: 1px solid #1e293b;
-      border-radius: 8px;
-      padding: 10px;
-      text-align: center;
-      color: #e2e8f0;
-      margin: 4px 0;
-    }
-    .docs-list {
-      padding-left: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-  </style>
+  <title>Bayesian Batting Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 flex flex-col items-center font-sans antialiased">
 
-  <main>
+  <main class="w-full max-w-md space-y-4">
     <!-- Header -->
-    <header>
-      <div class="header-top">
-        <h1>Bayes at the Plate</h1>
-        <span class="header-tag">Beta-Binomial</span>
+    <header class="border-b border-slate-800 pb-3">
+      <div class="flex justify-between items-baseline">
+        <h1 class="text-xl font-bold tracking-tight text-emerald-400">Bayes at the Plate</h1>
+        <span class="text-xs uppercase tracking-widest text-slate-400 font-mono">Beta-Binomial</span>
       </div>
-      <p class="subtitle">Conjugate updating & empirical shrinkage for true batting average estimation.</p>
+      <p class="text-xs text-slate-400 mt-1">Shrinkage & updating of a batting average across a 160-game season.</p>
     </header>
 
-    <!-- Tab Navigation -->
-    <nav class="tab-nav">
-      <button id="tabBtnSim" class="tab-btn active" onclick="switchTab('sim')">Simulator</button>
-      <button id="tabBtnDocs" class="tab-btn" onclick="switchTab('docs')">Guide & Math</button>
-    </nav>
+    <!-- Prior Configuration Card -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+      <div class="flex justify-between items-center">
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Prior Track Record</span>
+        <button id="resetBtn" class="text-xs text-rose-400 hover:text-rose-300 font-medium">Reset Season</button>
+      </div>
 
-    <!-- ==================== TAB 1: SIMULATOR ==================== -->
-    <div id="viewSim" style="display: flex; flex-direction: column; gap: 16px;">
-      
-      <!-- Prior Baseline Setup Card -->
-      <section class="card">
-        <div class="card-header">
-          <span class="card-title">League / Player Prior (Beta Distribution)</span>
-          <button id="resetPriorBtn" class="btn-link">Reset Baseline</button>
-        </div>
-
-        <div class="grid-3">
-          <div>
-            <label>Archetype Preset</label>
-            <select id="priorPreset">
-              <option value="league" selected>MLB League Avg (75/225)</option>
-              <option value="elite">All-Star Hitter (90/210)</option>
-              <option value="uninformative">Flat / Uniform (1/1)</option>
-              <option value="custom">Custom α / β</option>
-            </select>
-          </div>
-          <div>
-            <label>Prior Hits (α₀)</label>
-            <input type="number" id="priorAlpha" step="1" min="1" max="500" value="75">
-          </div>
-          <div>
-            <label>Prior Outs (β₀)</label>
-            <input type="number" id="priorBeta" step="1" min="1" max="1000" value="225">
-          </div>
-        </div>
-      </section>
-
-      <!-- Current Season Evidence Card -->
-      <section class="card">
-        <div class="card-header">
-          <span class="card-title">Observed Sample (In-Season Evidence)</span>
-          <span style="font-size: 11px; font-family: ui-monospace, monospace; color: #94a3b8;" id="sampleRawBA">Observed BA: .400</span>
-        </div>
-
-        <div class="grid-2">
-          <div>
-            <label>Hits (H)</label>
-            <input type="number" id="obsHits" step="1" min="0" max="300" value="4">
-          </div>
-          <div>
-            <label>At-Bats (AB)</label>
-            <input type="number" id="obsAB" step="1" min="1" max="700" value="10">
-          </div>
-        </div>
-
-        <!-- Quick Sample Scenarios -->
+      <div class="grid grid-cols-2 gap-3">
         <div>
-          <label style="margin-bottom: 6px;">Quick Progression Windows</label>
-          <div class="grid-3">
-            <button class="btn-sample" onclick="setSample(4, 10)">Week 1 (4/10: .400)</button>
-            <button class="btn-sample" onclick="setSample(15, 50)">Month 1 (15/50: .300)</button>
-            <button class="btn-sample" onclick="setSample(160, 500)">Full Season (160/500)</button>
-          </div>
+          <label class="text-[11px] text-slate-400 block mb-1">Prior AVG (μ)</label>
+          <input type="number" id="priorAvg" step="0.005" min="0.150" max="0.400" value="0.275"
+                 class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-emerald-500">
         </div>
-      </section>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">Prior Weight (ABs)</label>
+          <input type="number" id="priorWeight" step="50" min="50" max="1000" value="450"
+                 class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+    </section>
 
-      <!-- Key Metrics Ribbon -->
-      <section class="grid-3">
-        <div class="stat-box">
-          <span class="stat-label">Observed (Raw)</span>
-          <span id="statObsBA" class="stat-value" style="color: #fbbf24;">.400</span>
-          <span id="statObsCount" class="stat-sub">4 H / 10 AB</span>
-        </div>
-        <div class="stat-box">
-          <span class="stat-label">Prior Mean</span>
-          <span id="statPriorMean" class="stat-value" style="color: #94a3b8;">.250</span>
-          <span id="statPriorWeight" class="stat-sub">300 Pseudo-AB</span>
-        </div>
-        <div class="stat-box" style="border-color: rgba(56, 189, 248, 0.4);">
-          <span class="stat-label" style="color: #38bdf8;">Bayes Estimate</span>
-          <span id="statPostMean" class="stat-value" style="color: #38bdf8;">.255</span>
-          <span id="statShrinkage" class="stat-sub">96.8% Shrunk to Prior</span>
-        </div>
-      </section>
+    <!-- Key Stats Display -->
+    <section class="grid grid-cols-3 gap-2 text-center">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5">
+        <span class="text-[10px] text-slate-400 block uppercase">Raw Season AVG</span>
+        <span id="statObsAvg" class="text-lg font-bold font-mono text-slate-300">.000</span>
+        <span id="statObsCount" class="text-[10px] text-slate-500 font-mono block">0 H / 0 AB</span>
+      </div>
+      <div class="bg-slate-900 border border-emerald-950/60 rounded-xl p-2.5">
+        <span class="text-[10px] text-emerald-400 font-medium block uppercase">Bayes Estimate</span>
+        <span id="statBayesAvg" class="text-lg font-bold font-mono text-emerald-400">.275</span>
+        <span id="statAlphaBeta" class="text-[10px] text-slate-500 font-mono block">α: 124 | β: 326</span>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5">
+        <span class="text-[10px] text-slate-400 block uppercase">Games Logged</span>
+        <span id="statGames" class="text-lg font-bold font-mono text-slate-300">0</span>
+        <span class="text-[10px] text-slate-500 font-mono block">of 160</span>
+      </div>
+    </section>
 
-      <!-- PDF Density Canvas Plot -->
-      <section class="card" style="padding: 12px;">
-        <div class="card-header">
-          <span class="card-title">Talent Probability Density (PDF)</span>
-          <span id="statCredibleInterval" style="font-size: 10px; font-family: ui-monospace, monospace; color: #94a3b8;">95% HDI: [.207, .305]</span>
-        </div>
-        
-        <div class="canvas-container">
-          <canvas id="densityCanvas"></canvas>
-        </div>
+    <!-- Dynamic Chart Canvas -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-3">
+      <div class="h-48 w-full">
+        <canvas id="posteriorChart"></canvas>
+      </div>
+      <div class="flex justify-center gap-4 mt-2 text-[11px] font-mono">
+        <span class="flex items-center gap-1.5 text-slate-400">
+          <span class="w-2.5 h-0.5 bg-slate-500 inline-block"></span> Prior Dist.
+        </span>
+        <span class="flex items-center gap-1.5 text-emerald-400">
+          <span class="w-2.5 h-1 bg-emerald-400 inline-block"></span> Current Posterior
+        </span>
+      </div>
+    </section>
 
-        <div class="legend-row">
-          <span class="legend-item">
-            <span class="dot-legend" style="background-color: #64748b;"></span> Prior Beta(α₀, β₀)
-          </span>
-          <span class="legend-item">
-            <span class="dot-legend" style="background-color: #38bdf8;"></span> Posterior Beta(α₁, β₁)
-          </span>
-          <span class="legend-item">
-            <span class="dot-legend" style="background-color: #fbbf24;"></span> Observed Raw BA
-          </span>
-        </div>
-      </section>
+    <!-- Incoming 10-Game Data Entry Controls -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+      <div class="flex justify-between items-center">
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Add 10-Game Window (~38 ABs)</span>
+      </div>
 
-    </div>
+      <!-- Quick Preset Buttons -->
+      <div class="grid grid-cols-3 gap-2">
+        <button id="btnHot" class="py-2 px-1 bg-rose-950/60 border border-rose-800/80 hover:bg-rose-900 text-rose-200 rounded-lg text-xs font-medium transition active:scale-95">
+          🔥 Hot (.395)<br><span class="text-[10px] text-rose-300/70 font-mono">15 H / 38 AB</span>
+        </button>
+        <button id="btnAvg" class="py-2 px-1 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium transition active:scale-95">
+          ⚖️ Normal (.263)<br><span class="text-[10px] text-slate-400 font-mono">10 H / 38 AB</span>
+        </button>
+        <button id="btnCold" class="py-2 px-1 bg-sky-950/60 border border-sky-800/80 hover:bg-sky-900 text-sky-200 rounded-lg text-xs font-medium transition active:scale-95">
+          🧊 Slump (.132)<br><span class="text-[10px] text-sky-300/70 font-mono">5 H / 38 AB</span>
+        </button>
+      </div>
 
-    <!-- ==================== TAB 2: GUIDE & MATH ==================== -->
-    <div id="viewDocs" style="display: none; flex-direction: column; gap: 16px;">
-      
-      <!-- The Baseball Small Sample Problem -->
-      <section class="card docs-section">
-        <h2 class="docs-h2">1. The Mystery: The April .400 Hitter</h2>
-        <p>
-          Every April, a handful of Major League hitters go 4-for-10 in their first few games and boast a blistering <strong>.400 batting average</strong>. Does anyone actually believe they are a true .400 hitter who will break Ted Williams' record? 
-        </p>
-        <div class="docs-callout">
-          <strong>The Coin Toss Problem:</strong> If you flip a coin 10 times and get 7 heads (70%), you don't conclude the coin is broken. You know 10 flips is too small a sample to overcome your prior belief that coins are 50/50. Baseball batting works the exact same way.
-        </div>
-        <p>
-          Standard batting statistics (H / AB) suffer from <strong>small sample noise</strong>. Empirical Bayes solves this by anchoring noisy early-season samples to historical prior distributions.
-        </p>
-      </section>
+      <!-- Custom Input Drawer -->
+      <div class="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+        <input type="number" id="customH" placeholder="Hits" min="0" max="40" class="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none">
+        <input type="number" id="customAB" placeholder="ABs" min="1" max="50" value="38" class="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none">
+        <button id="btnCustom" class="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shrink-0 active:scale-95">
+          Add
+        </button>
+      </div>
+    </section>
 
-      <!-- The Beta Distribution as a Prior -->
-      <section class="card docs-section">
-        <h2 class="docs-h2">2. The Beta Distribution as "Pseudo-At-Bats"</h2>
-        <p>
-          A batter's true underlying batting talent θ is modeled using a <strong>Beta distribution</strong>:
-        </p>
-        <div class="docs-formula">
-          θ ~ Beta(α₀, β₀)
-        </div>
-        <p>
-          The parameters α₀ and β₀ have an intuitive interpretation in baseball:
-        </p>
-        <ul class="docs-list">
-          <li><strong>α₀ (Alpha):</strong> Pseudo-hits prior to the season (e.g., <strong>75</strong>).</li>
-          <li><strong>β₀ (Beta):</strong> Pseudo-outs prior to the season (e.g., <strong>225</strong>).</li>
-          <li><strong>Total Prior Weight (α₀ + β₀):</strong> The equivalent sample size of historical data (e.g., <strong>300 pseudo-at-bats</strong>).</li>
-          <li><strong>Prior Mean:</strong> α₀ / (α₀ + β₀) = 75 / 300 = <strong>.250</strong> (league average).</li>
-        </ul>
-      </section>
-
-      <!-- The Conjugate Update Rule -->
-      <section class="card docs-section">
-        <h2 class="docs-h2">3. The Math: Beta-Binomial Conjugacy</h2>
-        <p>
-          Because the Beta distribution is the <strong>conjugate prior</strong> to the Binomial likelihood, updating your belief after observing new hits (H) and outs (AB - H) requires no complex integration—just simple arithmetic:
-        </p>
-        <div class="docs-formula">
-          α₁ = α₀ + H  and  β₁ = β₀ + (AB - H)
-        </div>
-        <p>
-          The new <strong>Bayes expected batting average</strong> is the mean of this updated distribution:
-        </p>
-        <div class="docs-formula">
-          E[θ | H, AB] = (α₀ + H) / (α₀ + β₀ + AB)
-        </div>
-      </section>
-
-      <!-- Shrinkage and Sample Weight -->
-      <section class="card docs-section">
-        <h2 class="docs-h2">4. Empirical Shrinkage in Action</h2>
-        <p>
-          The Bayes estimate can also be written as a <strong>weighted average</strong> between the player's noisy in-season average and the prior:
-        </p>
-        <div class="docs-formula" style="font-size: 11px;">
-          Bayes BA = (1 - w) × Prior Mean + w × Observed BA
-        </div>
-        <p>
-          where the weight on the new data is:
-        </p>
-        <div class="docs-formula" style="font-size: 11px;">
-          w = AB / (AB + α₀ + β₀)
-        </div>
-        <ul class="docs-list">
-          <li><strong>After 10 At-Bats (4/10):</strong> w = 10 / (10 + 300) = 3.2%. The observed .400 average receives only 3.2% weight, shrinking the estimate back to <strong>.255</strong>!</li>
-          <li><strong>After 500 At-Bats (160/500):</strong> w = 500 / (500 + 300) = 62.5%. The season data now dominates the prior, pulling the estimate close to the player's true .320 performance.</li>
-        </ul>
-      </section>
-
-    </div>
+    <!-- Game Log History -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+      <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide block mb-2">Season Trajectory</span>
+      <div id="logContainer" class="space-y-1.5 max-h-36 overflow-y-auto text-xs font-mono text-slate-400 divide-y divide-slate-800/40">
+        <div class="text-[11px] text-slate-600 italic">No games played yet. Season opens on Opening Day.</div>
+      </div>
+    </section>
   </main>
 
   <script>
-    // Tab Switching
-    function switchTab(tabId) {
-      const viewSim = document.getElementById('viewSim');
-      const viewDocs = document.getElementById('viewDocs');
-      const btnSim = document.getElementById('tabBtnSim');
-      const btnDocs = document.getElementById('tabBtnDocs');
+    // State
+    let priorAlpha = 0;
+    let priorBeta = 0;
+    let currentAlpha = 0;
+    let currentBeta = 0;
+    let seasonHits = 0;
+    let seasonABs = 0;
+    let gamesPlayed = 0;
+    let logHistory = [];
 
-      if (tabId === 'sim') {
-        viewSim.style.display = 'flex';
-        viewDocs.style.display = 'none';
-        btnSim.classList.add('active');
-        btnDocs.classList.remove('active');
-        setTimeout(drawDensityPlot, 50);
-      } else {
-        viewSim.style.display = 'none';
-        viewDocs.style.display = 'flex';
-        btnDocs.classList.add('active');
-        btnSim.classList.remove('active');
-      }
-    }
-
-    // State Variables
-    let a0 = 75;
-    let b0 = 225;
-    let hits = 4;
-    let ab = 10;
-
-    function syncInputs() {
-      a0 = Math.max(1, parseFloat(document.getElementById('priorAlpha').value) || 75);
-      b0 = Math.max(1, parseFloat(document.getElementById('priorBeta').value) || 225);
-      hits = Math.max(0, parseInt(document.getElementById('obsHits').value) || 0);
-      ab = Math.max(1, parseInt(document.getElementById('obsAB').value) || 1);
-      if (hits > ab) hits = ab;
-    }
-
-    function setSample(h, totalAB) {
-      document.getElementById('obsHits').value = h;
-      document.getElementById('obsAB').value = totalAB;
-      updateModel();
-    }
-
-    function handlePresetChange() {
-      const val = document.getElementById('priorPreset').value;
-      if (val === 'league') {
-        document.getElementById('priorAlpha').value = 75;
-        document.getElementById('priorBeta').value = 225;
-      } else if (val === 'elite') {
-        document.getElementById('priorAlpha').value = 90;
-        document.getElementById('priorBeta').value = 210;
-      } else if (val === 'uninformative') {
-        document.getElementById('priorAlpha').value = 1;
-        document.getElementById('priorBeta').value = 1;
-      }
-      updateModel();
-    }
-
-    // Log-gamma approximation for Beta PDF evaluation
+    // Probability Density Function: Beta(x; a, b) computed in log space
     function logGamma(z) {
       const g = 7;
       const C = [
-        0.99999999999980993,
-        676.5203681218851,
-        -1259.1392167224028,
-        771.32342877765313,
-        -176.61502916214059,
-        12.507343278686905,
-        -0.138571095836526,
-        9.9843695780195716e-6,
-        1.5056327351493116e-7
+        0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+        771.32342877765313, -176.61502916214059, 12.507343278686905,
+        -0.13857109586547999, 9.9843695780195716e-6, 1.5056327351493116e-7
       ];
-      if (z < 0.5) {
-        return Math.log(Math.PI / Math.sin(Math.PI * z)) - logGamma(1 - z);
-      }
+      if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * Math.exp(logGamma(1 - z)));
       z -= 1;
-      let base = C[0];
-      for (let i = 1; i < g + 2; i++) {
-        base += C[i] / (z + i);
-      }
+      let x = C[0];
+      for (let i = 1; i < g + 2; i++) x += C[i] / (z + i);
       const t = z + g + 0.5;
-      return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(base);
+      return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
     }
 
     function betaPDF(x, a, b) {
       if (x <= 0 || x >= 1) return 0;
-      const lbeta = logGamma(a) + logGamma(b) - logGamma(a + b);
-      const lval = (a - 1) * Math.log(x) + (b - 1) * Math.log(1 - x) - lbeta;
-      return Math.exp(lval);
+      const logBeta = logGamma(a) + logGamma(b) - logGamma(a + b);
+      const logVal = (a - 1) * Math.log(x) + (b - 1) * Math.log(1 - x) - logBeta;
+      return Math.exp(logVal);
     }
 
-    function updateModel() {
-      syncInputs();
-
-      const a1 = a0 + hits;
-      const b1 = b0 + (ab - hits);
-
-      const rawBA = hits / ab;
-      const priorMean = a0 / (a0 + b0);
-      const postMean = a1 / (a1 + b1);
-
-      // Shrinkage percentage
-      const priorWeight = a0 + b0;
-      const dataWeight = ab;
-      const shrinkage = (priorWeight / (priorWeight + dataWeight)) * 100;
-
-      // Approximate 95% Credible Interval using standard beta variance
-      const postVar = (a1 * b1) / (Math.pow(a1 + b1, 2) * (a1 + b1 + 1));
-      const postSD = Math.sqrt(postVar);
-      const ciLow = Math.max(0, postMean - 1.96 * postSD);
-      const ciHigh = Math.min(1, postMean + 1.96 * postSD);
-
-      document.getElementById('sampleRawBA').innerText = `Observed BA: .${Math.round(rawBA * 1000).toString().padStart(3, '0')}`;
-      document.getElementById('statObsBA').innerText = `.${Math.round(rawBA * 1000).toString().padStart(3, '0')}`;
-      document.getElementById('statObsCount').innerText = `${hits} H / ${ab} AB`;
-
-      document.getElementById('statPriorMean').innerText = `.${Math.round(priorMean * 1000).toString().padStart(3, '0')}`;
-      document.getElementById('statPriorWeight').innerText = `${Math.round(priorWeight)} Pseudo-AB`;
-
-      document.getElementById('statPostMean').innerText = `.${Math.round(postMean * 1000).toString().padStart(3, '0')}`;
-      document.getElementById('statShrinkage').innerText = `${shrinkage.toFixed(1)}% Shrunk to Prior`;
-      document.getElementById('statCredibleInterval').innerText = `95% CI: [${ciLow.toFixed(3)}, ${ciHigh.toFixed(3)}]`;
-
-      drawDensityPlot();
+    // Generate x-axis points from .150 to .400
+    const xValues = [];
+    for (let i = 150; i <= 400; i += 2) {
+      xValues.push(i / 1000);
     }
 
-    function drawDensityPlot() {
-      const canvas = document.getElementById('densityCanvas');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const container = canvas.parentElement;
-
-      const width = container.clientWidth || 440;
-      const height = container.clientHeight || 210;
-
-      canvas.width = width * 2;
-      canvas.height = height * 2;
-      ctx.scale(2, 2);
-
-      ctx.clearRect(0, 0, width, height);
-
-      const padX = 35;
-      const padY = 25;
-      const plotW = width - padX - 15;
-      const plotH = height - padY - 20;
-
-      const xMin = 0.10;
-      const xMax = 0.45;
-
-      const a1 = a0 + hits;
-      const b1 = b0 + (ab - hits);
-
-      // Evaluate density curve points
-      const points = 120;
-      const priorPts = [];
-      const postPts = [];
-      let maxDensity = 0;
-
-      for (let i = 0; i <= points; i++) {
-        const x = xMin + (i / points) * (xMax - xMin);
-        const yPrior = betaPDF(x, a0, b0);
-        const yPost = betaPDF(x, a1, b1);
-        if (yPrior > maxDensity) maxDensity = yPrior;
-        if (yPost > maxDensity) maxDensity = yPost;
-        priorPts.push({ x, y: yPrior });
-        postPts.push({ x, y: yPost });
+    // Chart.js Setup
+    const ctx = document.getElementById('posteriorChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: xValues.map(v => v.toFixed(3)),
+        datasets: [
+          {
+            label: 'Prior',
+            data: [],
+            borderColor: '#64748b',
+            borderWidth: 1.5,
+            borderDash: [4, 4],
+            pointRadius: 0,
+            fill: false
+          },
+          {
+            label: 'Posterior',
+            data: [],
+            borderColor: '#34d399',
+            backgroundColor: 'rgba(52, 211, 153, 0.12)',
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 400 },
+        scales: {
+          x: {
+            grid: { color: '#1e293b' },
+            ticks: {
+              color: '#64748b',
+              maxTicksLimit: 6,
+              font: { family: 'monospace', size: 10 }
+            }
+          },
+          y: { display: false }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: true,
+            callbacks: {
+              title: (items) => `Batting Avg: ${items[0].label}`,
+              label: (item) => `Density: ${item.parsed.y.toFixed(2)}`
+            }
+          }
+        }
       }
+    });
 
-      maxDensity = Math.max(maxDensity * 1.15, 5);
+    function initPrior() {
+      const priorAvg = parseFloat(document.getElementById('priorAvg').value);
+      const priorWeight = parseFloat(document.getElementById('priorWeight').value);
 
-      function mapX(val) {
-        return padX + ((val - xMin) / (xMax - xMin)) * plotW;
-      }
-      function mapY(val) {
-        return (height - padY) - (val / maxDensity) * plotH;
-      }
+      priorAlpha = priorAvg * priorWeight;
+      priorBeta = (1 - priorAvg) * priorWeight;
 
-      // Draw Grid / Ticks
-      ctx.strokeStyle = '#1e293b';
-      ctx.lineWidth = 1;
-      const tickVals = [0.15, 0.20, 0.25, 0.30, 0.35, 0.40];
-      ctx.fillStyle = '#64748b';
-      ctx.font = '10px ui-monospace, monospace';
-      ctx.textAlign = 'center';
+      currentAlpha = priorAlpha;
+      currentBeta = priorBeta;
+      seasonHits = 0;
+      seasonABs = 0;
+      gamesPlayed = 0;
+      logHistory = [];
 
-      tickVals.forEach(tv => {
-        const tx = mapX(tv);
-        ctx.beginPath();
-        ctx.moveTo(tx, padY - 5);
-        ctx.lineTo(tx, height - padY);
-        ctx.stroke();
-        ctx.fillText(`.${Math.round(tv * 1000)}`, tx, height - padY + 14);
+      render();
+    }
+
+    function addWindow(hits, abs) {
+      if (gamesPlayed >= 160) return;
+      seasonHits += hits;
+      seasonABs += abs;
+      currentAlpha += hits;
+      currentBeta += abs;
+      gamesPlayed += 10;
+
+      const rawAvg = (seasonHits / seasonABs).toFixed(3);
+      const bayesAvg = (currentAlpha / (currentAlpha + currentBeta)).toFixed(3);
+
+      logHistory.unshift({
+        games: gamesPlayed,
+        segment: `${hits} for ${abs} (${(hits / abs).toFixed(3)})`,
+        raw: rawAvg,
+        bayes: bayesAvg
       });
 
-      // Draw Baseline axis
-      ctx.strokeStyle = '#334155';
-      ctx.beginPath();
-      ctx.moveTo(padX, height - padY);
-      ctx.lineTo(padX + plotW, height - padY);
-      ctx.stroke();
+      render();
+    }
 
-      // 1. Draw Prior Distribution Curve (Gray)
-      ctx.strokeStyle = '#64748b';
-      ctx.fillStyle = 'rgba(100, 116, 139, 0.15)';
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.moveTo(mapX(priorPts[0].x), height - padY);
-      priorPts.forEach(pt => ctx.lineTo(mapX(pt.x), mapY(pt.y)));
-      ctx.lineTo(mapX(priorPts[priorPts.length - 1].x), height - padY);
-      ctx.fill();
-      ctx.stroke();
+    function render() {
+      // Evaluate distributions across x-axis
+      const priorData = xValues.map(x => betaPDF(x, priorAlpha, priorBeta));
+      const postData = xValues.map(x => betaPDF(x, currentAlpha, currentBeta));
 
-      // 2. Draw Posterior Distribution Curve (Sky Blue)
-      ctx.strokeStyle = '#38bdf8';
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.moveTo(mapX(postPts[0].x), height - padY);
-      postPts.forEach(pt => ctx.lineTo(mapX(pt.x), mapY(pt.y)));
-      ctx.lineTo(mapX(postPts[postPts.length - 1].x), height - padY);
-      ctx.fill();
-      ctx.stroke();
+      chart.data.datasets[0].data = priorData;
+      chart.data.datasets[1].data = postData;
+      chart.update();
 
-      // 3. Draw Observed Raw BA Needle (Yellow / Amber)
-      const rawBA = hits / ab;
-      if (rawBA >= xMin && rawBA <= xMax) {
-        const rawX = mapX(rawBA);
-        ctx.strokeStyle = '#fbbf24';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 3]);
-        ctx.beginPath();
-        ctx.moveTo(rawX, padY - 5);
-        ctx.lineTo(rawX, height - padY);
-        ctx.stroke();
-        ctx.setLineDash([]);
+      // Update stat cards
+      const rawAvg = seasonABs > 0 ? (seasonHits / seasonABs).toFixed(3).replace(/^0/, '') : '.000';
+      const bayesMean = (currentAlpha / (currentAlpha + currentBeta)).toFixed(3).replace(/^0/, '');
 
-        ctx.fillStyle = '#fbbf24';
-        ctx.beginPath();
-        ctx.arc(rawX, padY - 5, 3.5, 0, Math.PI * 2);
-        ctx.fill();
+      document.getElementById('statObsAvg').innerText = rawAvg;
+      document.getElementById('statObsCount').innerText = `${seasonHits} H / ${seasonABs} AB`;
+      document.getElementById('statBayesAvg').innerText = bayesMean;
+      document.getElementById('statAlphaBeta').innerText = `α: ${Math.round(currentAlpha)} | β: ${Math.round(currentBeta)}`;
+      document.getElementById('statGames').innerText = gamesPlayed;
+
+      // Render history log
+      const logContainer = document.getElementById('logContainer');
+      if (logHistory.length === 0) {
+        logContainer.innerHTML = `<div class="text-[11px] text-slate-600 italic">No games played yet. Season opens on Opening Day.</div>`;
+      } else {
+        logContainer.innerHTML = logHistory.map(entry => `
+          <div class="flex justify-between items-center py-1 text-[11px]">
+            <span class="text-slate-300">G${entry.games}: ${entry.segment}</span>
+            <span class="text-slate-500">Raw: <span class="text-slate-300">${entry.raw}</span> | Bayes: <span class="text-emerald-400 font-semibold">${entry.bayes}</span></span>
+          </div>
+        `).join('');
       }
     }
 
     // Event Listeners
-    document.getElementById('priorPreset').addEventListener('change', handlePresetChange);
-    document.getElementById('priorAlpha').addEventListener('input', updateModel);
-    document.getElementById('priorBeta').addEventListener('input', updateModel);
-    document.getElementById('obsHits').addEventListener('input', updateModel);
-    document.getElementById('obsAB').addEventListener('input', updateModel);
-    document.getElementById('resetPriorBtn').addEventListener('click', () => {
-      document.getElementById('priorPreset').value = 'league';
-      handlePresetChange();
+    document.getElementById('btnHot').addEventListener('click', () => addWindow(15, 38));
+    document.getElementById('btnAvg').addEventListener('click', () => addWindow(10, 38));
+    document.getElementById('btnCold').addEventListener('click', () => addWindow(5, 38));
+
+    document.getElementById('btnCustom').addEventListener('click', () => {
+      const h = parseInt(document.getElementById('customH').value);
+      const ab = parseInt(document.getElementById('customAB').value);
+      if (!isNaN(h) && !isNaN(ab) && ab > 0 && h <= ab) {
+        addWindow(h, ab);
+        document.getElementById('customH').value = '';
+      }
     });
 
-    window.addEventListener('resize', drawDensityPlot);
+    document.getElementById('resetBtn').addEventListener('click', initPrior);
+    document.getElementById('priorAvg').addEventListener('change', initPrior);
+    document.getElementById('priorWeight').addEventListener('change', initPrior);
 
-    updateModel();
+    // Initial draw
+    initPrior();
   </script>
 </body>
 </html>
