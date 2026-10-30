@@ -6,6 +6,43 @@
   <title>Bayesian Batting Tracker</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Tab Switcher Styling matching dark slate aesthetic */
+    .tab-nav {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background-color: #0f172a;
+      padding: 3px;
+      border-radius: 10px;
+      border: 1px solid #1e293b;
+      gap: 4px;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tab-btn.active {
+      background-color: #1e293b;
+      color: #34d399; /* emerald-400 */
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .docs-formula {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background-color: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      color: #e2e8f0;
+    }
+  </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen p-4 flex flex-col items-center font-sans antialiased">
 
@@ -19,102 +56,211 @@
       <p class="text-xs text-slate-400 mt-1">Shrinkage & updating of a batting average across a 160-game season.</p>
     </header>
 
-    <!-- Prior Configuration Card -->
-    <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
-      <div class="flex justify-between items-center">
-        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Prior Track Record</span>
-        <button id="resetBtn" class="text-xs text-rose-400 hover:text-rose-300 font-medium">Reset Season</button>
-      </div>
+    <!-- Tab Navigation -->
+    <nav class="tab-nav">
+      <button id="tabBtnSim" class="tab-btn active" onclick="switchTab('sim')">Simulator</button>
+      <button id="tabBtnDocs" class="tab-btn" onclick="switchTab('docs')">Guide & Math</button>
+    </nav>
 
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="text-[11px] text-slate-400 block mb-1">Prior AVG (μ)</label>
-          <input type="number" id="priorAvg" step="0.005" min="0.150" max="0.400" value="0.275"
-                 class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-emerald-500">
+    <!-- ==================== TAB 1: SIMULATOR (ORIGINAL UI) ==================== -->
+    <div id="viewSim" class="space-y-4">
+      <!-- Prior Configuration Card -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+        <div class="flex justify-between items-center">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Prior Track Record</span>
+          <button id="resetBtn" class="text-xs text-rose-400 hover:text-rose-300 font-medium">Reset Season</button>
         </div>
-        <div>
-          <label class="text-[11px] text-slate-400 block mb-1">Prior Weight (ABs)</label>
-          <input type="number" id="priorWeight" step="50" min="50" max="1000" value="450"
-                 class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-emerald-500">
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">Prior AVG (μ)</label>
+            <input type="number" id="priorAvg" step="0.005" min="0.150" max="0.400" value="0.275"
+                   class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-emerald-500">
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">Prior Weight (ABs)</label>
+            <input type="number" id="priorWeight" step="50" min="50" max="1000" value="450"
+                   class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-emerald-500">
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Key Stats Display -->
-    <section class="grid grid-cols-3 gap-2 text-center">
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5">
-        <span class="text-[10px] text-slate-400 block uppercase">Raw Season AVG</span>
-        <span id="statObsAvg" class="text-lg font-bold font-mono text-slate-300">.000</span>
-        <span id="statObsCount" class="text-[10px] text-slate-500 font-mono block">0 H / 0 AB</span>
-      </div>
-      <div class="bg-slate-900 border border-emerald-950/60 rounded-xl p-2.5">
-        <span class="text-[10px] text-emerald-400 font-medium block uppercase">Bayes Estimate</span>
-        <span id="statBayesAvg" class="text-lg font-bold font-mono text-emerald-400">.275</span>
-        <span id="statAlphaBeta" class="text-[10px] text-slate-500 font-mono block">α: 124 | β: 326</span>
-      </div>
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5">
-        <span class="text-[10px] text-slate-400 block uppercase">Games Logged</span>
-        <span id="statGames" class="text-lg font-bold font-mono text-slate-300">0</span>
-        <span class="text-[10px] text-slate-500 font-mono block">of 160</span>
-      </div>
-    </section>
+      <!-- Key Stats Display -->
+      <section class="grid grid-cols-3 gap-2 text-center">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5">
+          <span class="text-[10px] text-slate-400 block uppercase">Raw Season AVG</span>
+          <span id="statObsAvg" class="text-lg font-bold font-mono text-slate-300">.000</span>
+          <span id="statObsCount" class="text-[10px] text-slate-500 font-mono block">0 H / 0 AB</span>
+        </div>
+        <div class="bg-slate-900 border border-emerald-950/60 rounded-xl p-2.5">
+          <span class="text-[10px] text-emerald-400 font-medium block uppercase">Bayes Estimate</span>
+          <span id="statBayesAvg" class="text-lg font-bold font-mono text-emerald-400">.275</span>
+          <span id="statAlphaBeta" class="text-[10px] text-slate-500 font-mono block">α: 124 | β: 326</span>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5">
+          <span class="text-[10px] text-slate-400 block uppercase">Games Logged</span>
+          <span id="statGames" class="text-lg font-bold font-mono text-slate-300">0</span>
+          <span class="text-[10px] text-slate-500 font-mono block">of 160</span>
+        </div>
+      </section>
 
-    <!-- Dynamic Chart Canvas -->
-    <section class="bg-slate-900 border border-slate-800 rounded-xl p-3">
-      <div class="h-48 w-full">
-        <canvas id="posteriorChart"></canvas>
-      </div>
-      <div class="flex justify-center gap-4 mt-2 text-[11px] font-mono">
-        <span class="flex items-center gap-1.5 text-slate-400">
-          <span class="w-2.5 h-0.5 bg-slate-500 inline-block"></span> Prior Dist.
-        </span>
-        <span class="flex items-center gap-1.5 text-emerald-400">
-          <span class="w-2.5 h-1 bg-emerald-400 inline-block"></span> Current Posterior
-        </span>
-      </div>
-    </section>
+      <!-- Dynamic Chart Canvas -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-3">
+        <div class="h-48 w-full">
+          <canvas id="posteriorChart"></canvas>
+        </div>
+        <div class="flex justify-center gap-4 mt-2 text-[11px] font-mono">
+          <span class="flex items-center gap-1.5 text-slate-400">
+            <span class="w-2.5 h-0.5 bg-slate-500 inline-block"></span> Prior Dist.
+          </span>
+          <span class="flex items-center gap-1.5 text-emerald-400">
+            <span class="w-2.5 h-1 bg-emerald-400 inline-block"></span> Current Posterior
+          </span>
+        </div>
+      </section>
 
-    <!-- Incoming 10-Game Data Entry Controls -->
-    <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
-      <div class="flex justify-between items-center">
-        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Add 10-Game Window (~38 ABs)</span>
-      </div>
+      <!-- Incoming 10-Game Data Entry Controls -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+        <div class="flex justify-between items-center">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Add 10-Game Window (~38 ABs)</span>
+        </div>
 
-      <!-- Quick Preset Buttons -->
-      <div class="grid grid-cols-3 gap-2">
-        <button id="btnHot" class="py-2 px-1 bg-rose-950/60 border border-rose-800/80 hover:bg-rose-900 text-rose-200 rounded-lg text-xs font-medium transition active:scale-95">
-          🔥 Hot (.395)<br><span class="text-[10px] text-rose-300/70 font-mono">15 H / 38 AB</span>
-        </button>
-        <button id="btnAvg" class="py-2 px-1 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium transition active:scale-95">
-          ⚖️ Normal (.263)<br><span class="text-[10px] text-slate-400 font-mono">10 H / 38 AB</span>
-        </button>
-        <button id="btnCold" class="py-2 px-1 bg-sky-950/60 border border-sky-800/80 hover:bg-sky-900 text-sky-200 rounded-lg text-xs font-medium transition active:scale-95">
-          🧊 Slump (.132)<br><span class="text-[10px] text-sky-300/70 font-mono">5 H / 38 AB</span>
-        </button>
-      </div>
+        <!-- Quick Preset Buttons -->
+        <div class="grid grid-cols-3 gap-2">
+          <button id="btnHot" class="py-2 px-1 bg-rose-950/60 border border-rose-800/80 hover:bg-rose-900 text-rose-200 rounded-lg text-xs font-medium transition active:scale-95">
+            🔥 Hot (.395)<br><span class="text-[10px] text-rose-300/70 font-mono">15 H / 38 AB</span>
+          </button>
+          <button id="btnAvg" class="py-2 px-1 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium transition active:scale-95">
+            ⚖️ Normal (.263)<br><span class="text-[10px] text-slate-400 font-mono">10 H / 38 AB</span>
+          </button>
+          <button id="btnCold" class="py-2 px-1 bg-sky-950/60 border border-sky-800/80 hover:bg-sky-900 text-sky-200 rounded-lg text-xs font-medium transition active:scale-95">
+            🧊 Slump (.132)<br><span class="text-[10px] text-sky-300/70 font-mono">5 H / 38 AB</span>
+          </button>
+        </div>
 
-      <!-- Custom Input Drawer -->
-      <div class="flex items-center gap-2 pt-2 border-t border-slate-800/80">
-        <input type="number" id="customH" placeholder="Hits" min="0" max="40" class="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none">
-        <input type="number" id="customAB" placeholder="ABs" min="1" max="50" value="38" class="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none">
-        <button id="btnCustom" class="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shrink-0 active:scale-95">
-          Add
-        </button>
-      </div>
-    </section>
+        <!-- Custom Input Drawer -->
+        <div class="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+          <input type="number" id="customH" placeholder="Hits" min="0" max="40" class="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none">
+          <input type="number" id="customAB" placeholder="ABs" min="1" max="50" value="38" class="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none">
+          <button id="btnCustom" class="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shrink-0 active:scale-95">
+            Add
+          </button>
+        </div>
+      </section>
 
-    <!-- Game Log History -->
-   <!-- Game Log History -->
-    <section class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-      <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide block mb-2">Season Trajectory</span>
-      <!-- Added 'pr-3' to ensure clearance from the scrollbar -->
-      <div id="logContainer" class="space-y-1.5 max-h-36 overflow-y-auto pr-3 text-xs font-mono text-slate-400 divide-y divide-slate-800/40">
-        <div class="text-[11px] text-slate-600 italic">No games played yet. Season opens on Opening Day.</div>
-      </div>
-    </section>
+      <!-- Game Log History -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide block mb-2">Season Trajectory</span>
+        <div id="logContainer" class="space-y-1.5 max-h-36 overflow-y-auto pr-3 text-xs font-mono text-slate-400 divide-y divide-slate-800/40">
+          <div class="text-[11px] text-slate-600 italic">No games played yet. Season opens on Opening Day.</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ==================== TAB 2: GUIDE & MATH ==================== -->
+    <div id="viewDocs" class="space-y-4" style="display: none;">
+      
+      <!-- 1. The Small Sample Paradox -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3 text-xs leading-relaxed text-slate-300">
+        <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-wide">1. The Small-Sample Illusion</h2>
+        <p>
+          Every April, a batter gets 15 hits in their first 38 at-bats and posts a <strong>.395 batting average</strong>. Does anyone believe they are a true .395 hitter who will shatter league records?
+        </p>
+        <div class="bg-slate-950 border border-slate-800 border-l-2 border-l-emerald-400 rounded-lg p-3 text-slate-400">
+          <strong>The Coin Toss Analogy:</strong> If you flip a fair coin 10 times and get 7 heads (70%), you don't conclude the coin is rigged. You recognize that 10 flips is too small a sample to overcome your prior knowledge. In baseball, in-season batting averages are plagued by the exact same small-sample variance.
+        </div>
+        <p>
+          Empirical Bayes solves this by <strong>shrinking</strong> noisy early-season samples back toward the player's established career baseline.
+        </p>
+      </section>
+
+      <!-- 2. Beta Parameters as Pseudo-At-Bats -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3 text-xs leading-relaxed text-slate-300">
+        <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-wide">2. The Beta Distribution as "Pseudo-At-Bats"</h2>
+        <p>
+          A hitter's true underlying probability of getting a hit (&theta;) is modeled as a continuous random variable using a <strong>Beta distribution</strong>:
+        </p>
+        <div class="docs-formula">
+          &theta; ~ Beta(&alpha;₀, &beta;₀)
+        </div>
+        <p>
+          In baseball, the parameters &alpha;₀ and &beta;₀ represent real physical quantities:
+        </p>
+        <ul class="list-disc pl-5 space-y-1 text-slate-400">
+          <li><strong>Prior AVG (&mu;):</strong> The player's established career ability (e.g., <strong>.275</strong>).</li>
+          <li><strong>Prior Weight (N₀):</strong> How much historical data anchors the prior (e.g., <strong>450 at-bats</strong>).</li>
+          <li><strong>&alpha;₀ (Pseudo-Hits):</strong> &mu; &times; N₀ = 0.275 &times; 450 &approx; <strong>124</strong></li>
+          <li><strong>&beta;₀ (Pseudo-Outs):</strong> (1 - &mu;) &times; N₀ = 0.725 &times; 450 &approx; <strong>326</strong></li>
+        </ul>
+      </section>
+
+      <!-- 3. Conjugate Updating Math -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3 text-xs leading-relaxed text-slate-300">
+        <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-wide">3. The Math: Beta-Binomial Conjugacy</h2>
+        <p>
+          Because the Beta distribution is the <strong>conjugate prior</strong> to the Binomial likelihood, updating our belief after logging new Hits ($H$) and Outs ($AB - H$) requires no numerical approximation—just simple addition:
+        </p>
+        <div class="docs-formula">
+          &alpha;_current = &alpha;₀ + Total Hits<br>
+          &beta;_current = &beta;₀ + (Total ABs - Total Hits)
+        </div>
+        <p>
+          The <strong>Bayes Estimate</strong> displayed on the dashboard is the mean of this updated posterior distribution:
+        </p>
+        <div class="docs-formula">
+          E[&theta; | Data] = &alpha;_current / (&alpha;_current + &beta;_current)
+        </div>
+      </section>
+
+      <!-- 4. Shrinkage as a Weighted Average -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3 text-xs leading-relaxed text-slate-300">
+        <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-wide">4. Shrinkage in Action Across 160 Games</h2>
+        <p>
+          The Bayes estimate is mathematically equivalent to a <strong>precision-weighted average</strong> between the prior career baseline and the raw season performance:
+        </p>
+        <div class="docs-formula text-[11px]">
+          Bayes AVG = (1 - w) &times; Prior AVG + w &times; Raw Season AVG
+        </div>
+        <p>
+          where the weight ($w$) assigned to in-season evidence is:
+        </p>
+        <div class="docs-formula text-[11px]">
+          w = Season ABs / (Season ABs + Prior Weight)
+        </div>
+        <ul class="list-disc pl-5 space-y-1.5 text-slate-400">
+          <li><strong>Game 10 (15 H / 38 AB, Raw .395):</strong> Season weight $w = \frac{38}{38 + 450} \approx 7.8\%$. The player's .395 hot streak receives only 7.8% weight, shrinking the Bayes estimate to <strong>.284</strong>.</li>
+          <li><strong>Game 110 (165 H / 418 AB, Raw .395):</strong> Season weight $w = \frac{418}{418 + 450} \approx 48.2\%$. With over 400 at-bats logged, the season data now carries equal weight to the prior, pulling the Bayes estimate up to <strong>.333</strong>.</li>
+        </ul>
+      </section>
+
+    </div>
   </main>
 
   <script>
+    // Tab Switching Logic
+    function switchTab(tabId) {
+      const viewSim = document.getElementById('viewSim');
+      const viewDocs = document.getElementById('viewDocs');
+      const btnSim = document.getElementById('tabBtnSim');
+      const btnDocs = document.getElementById('tabBtnDocs');
+
+      if (tabId === 'sim') {
+        viewSim.style.display = 'block';
+        viewDocs.style.display = 'none';
+        btnSim.classList.add('active');
+        btnDocs.classList.remove('active');
+        // Ensure Chart.js resizes correctly when returning to view
+        if (window.chart) {
+          window.chart.resize();
+        }
+      } else {
+        viewSim.style.display = 'none';
+        viewDocs.style.display = 'block';
+        btnDocs.classList.add('active');
+        btnSim.classList.remove('active');
+      }
+    }
+
     // State
     let priorAlpha = 0;
     let priorBeta = 0;
@@ -156,7 +302,7 @@
 
     // Chart.js Setup
     const ctx = document.getElementById('posteriorChart').getContext('2d');
-    const chart = new Chart(ctx, {
+    window.chart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: xValues.map(v => v.toFixed(3)),
@@ -226,13 +372,12 @@
       render();
     }
 
-    
     function addWindow(hits, abs) {
       if (gamesPlayed >= 160) return;
       seasonHits += hits;
       seasonABs += abs;
       currentAlpha += hits;
-      currentBeta += (abs - hits); // Corrected: add outs (failures), not total ABs
+      currentBeta += (abs - hits);
       gamesPlayed += 10;
 
       const rawAvg = (seasonHits / seasonABs).toFixed(3);
@@ -247,16 +392,15 @@
 
       render();
     }
-    
 
     function render() {
       // Evaluate distributions across x-axis
       const priorData = xValues.map(x => betaPDF(x, priorAlpha, priorBeta));
       const postData = xValues.map(x => betaPDF(x, currentAlpha, currentBeta));
 
-      chart.data.datasets[0].data = priorData;
-      chart.data.datasets[1].data = postData;
-      chart.update();
+      window.chart.data.datasets[0].data = priorData;
+      window.chart.data.datasets[1].data = postData;
+      window.chart.update();
 
       // Update stat cards
       const rawAvg = seasonABs > 0 ? (seasonHits / seasonABs).toFixed(3).replace(/^0/, '') : '.000';
