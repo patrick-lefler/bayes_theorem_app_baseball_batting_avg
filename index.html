@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Bayesian Batting Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 flex flex-col items-center font-sans antialiased">
+
+  <main class="w-full max-w-md space-y-4">
+    <!-- Header -->
+    <header class="border-b border-slate-800 pb-3">
+      <div class="flex justify-between items-baseline">
+        <h1 class="text-xl font-bold tracking-tight text-emerald-400">Bayes at the Plate</h1>
+        <span class="text-xs uppercase tracking-widest text-slate-400 font-mono">Beta-Binomial</span>
+      </div>
+      <p class="text-xs text-slate-400 mt-1">Shrinkage & updating of a batter's true skill across a mythical 160-game season.</p>
+    </header>
+
+    <!-- Prior Configuration Card -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+      <div class="flex justify-between items-center">
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Prior Track Record</span>
+        <button id="resetBtn" class="text-xs text-rose-400 hover:text-rose-300 font-medium">Reset Season</button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">Prior AVG (μ)</label>
+          <input type="number" id="priorAvg" step="0.005" min="0.150" max="0.400" value="0.275"
+                 class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">Prior Weight (ABs)</label>
+          <input type="number" id="priorWeight" step="50" min="50" max="1000" value="450"
+                 class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Stats Display -->
+    <section class="grid grid-cols-3 gap-2 text-center">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5">
+        <span class="text-[10px] text-slate-400 block uppercase">Raw Season AVG</span>
+        <span id="statObsAvg" class="text-lg font-bold font-mono text-slate-300">.000</span>
+        <span id="statObsCount" class="text-[10px] text-slate-500 font-mono block">0 H / 0 AB</span>
+      </div>
+      <div class="bg-slate-900 border border-emerald-950/60 rounded-xl p-2.5">
+        <span class="text-[10px] text-emerald-400 font-medium block uppercase">Bayes Estimate</span>
+        <span id="statBayesAvg" class="text-lg font-bold font-mono text-emerald-400">.275</span>
+        <span id="statAlphaBeta" class="text-[10px] text-slate-500 font-mono block">α: 124 | β: 326</span>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5">
+        <span class="text-[10px] text-slate-400 block uppercase">Games Logged</span>
+        <span id="statGames" class="text-lg font-bold font-mono text-slate-300">0</span>
+        <span class="text-[10px] text-slate-500 font-mono block">of 160</span>
+      </div>
+    </section>
+
+    <!-- Dynamic Chart Canvas -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-3">
+      <div class="h-48 w-full">
+        <canvas id="posteriorChart"></canvas>
+      </div>
+      <div class="flex justify-center gap-4 mt-2 text-[11px] font-mono">
+        <span class="flex items-center gap-1.5 text-slate-400">
+          <span class="w-2.5 h-0.5 bg-slate-500 inline-block"></span> Prior Dist.
+        </span>
+        <span class="flex items-center gap-1.5 text-emerald-400">
+          <span class="w-2.5 h-1 bg-emerald-400 inline-block"></span> Current Posterior
+        </span>
+      </div>
+    </section>
+
+    <!-- Incoming 10-Game Data Entry Controls -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+      <div class="flex justify-between items-center">
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Add 10-Game Window (~38 ABs)</span>
+      </div>
+
+      <!-- Quick Preset Buttons -->
+      <div class="grid grid-cols-3 gap-2">
+        <button id="btnHot" class="py-2 px-1 bg-rose-950/60 border border-rose-800/80 hover:bg-rose-900 text-rose-200 rounded-lg text-xs font-medium transition active:scale-95">
+          🔥 Hot (.395)<br><span class="text-[10px] text-rose-300/70 font-mono">15 H / 38 AB</span>
+        </button>
+        <button id="btnAvg" class="py-2 px-1 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium transition active:scale-95">
+          ⚖️ Normal (.263)<br><span class="text-[10px] text-slate-400 font-mono">10 H / 38 AB</span>
+        </button>
+        <button id="btnCold" class="py-2 px-1 bg-sky-950/60 border border-sky-800/80 hover:bg-sky-900 text-sky-200 rounded-lg text-xs font-medium transition active:scale-95">
+          🧊 Slump (.132)<br><span class="text-[10px] text-sky-300/70 font-mono">5 H / 38 AB</span>
+        </button>
+      </div>
+
+      <!-- Custom Input Drawer -->
+      <div class="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+        <input type="number" id="customH" placeholder="Hits" min="0" max="40" class="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none">
+        <input type="number" id="customAB" placeholder="ABs" min="1" max="50" value="38" class="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none">
+        <button id="btnCustom" class="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shrink-0 active:scale-95">
+          Add
+        </button>
+      </div>
+    </section>
+
+    <!-- Game Log History -->
+     <section class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+      <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide block mb-2">Season Trajectory</span>
+      <!-- Added 'pr-3' to ensure clearance from the scrollbar -->
+      <div id="logContainer" class="space-y-1.5 max-h-36 overflow-y-auto pr-3 text-xs font-mono text-slate-400 divide-y divide-slate-800/40">
+        <div class="text-[11px] text-slate-600 italic">No games played yet. Season opens on Opening Day.</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // State
+    let priorAlpha = 0;
+    let priorBeta = 0;
+    let currentAlpha = 0;
+    let currentBeta = 0;
+    let seasonHits = 0;
+    let seasonABs = 0;
+    let gamesPlayed = 0;
+    let logHistory = [];
+
+    // Probability Density Function: Beta(x; a, b) computed in log space
+    function logGamma(z) {
+      const g = 7;
+      const C = [
+        0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+        771.32342877765313, -176.61502916214059, 12.507343278686905,
+        -0.13857109586547999, 9.9843695780195716e-6, 1.5056327351493116e-7
+      ];
+      if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * Math.exp(logGamma(1 - z)));
+      z -= 1;
+      let x = C[0];
+      for (let i = 1; i < g + 2; i++) x += C[i] / (z + i);
+      const t = z + g + 0.5;
+      return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
+    }
+
+    function betaPDF(x, a, b) {
+      if (x <= 0 || x >= 1) return 0;
+      const logBeta = logGamma(a) + logGamma(b) - logGamma(a + b);
+      const logVal = (a - 1) * Math.log(x) + (b - 1) * Math.log(1 - x) - logBeta;
+      return Math.exp(logVal);
+    }
+
+    // Generate x-axis points from .150 to .400
+    const xValues = [];
+    for (let i = 150; i <= 400; i += 2) {
+      xValues.push(i / 1000);
+    }
+
+    // Chart.js Setup
+    const ctx = document.getElementById('posteriorChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: xValues.map(v => v.toFixed(3)),
+        datasets: [
+          {
+            label: 'Prior',
+            data: [],
+            borderColor: '#64748b',
+            borderWidth: 1.5,
+            borderDash: [4, 4],
+            pointRadius: 0,
+            fill: false
+          },
+          {
+            label: 'Posterior',
+            data: [],
+            borderColor: '#34d399',
+            backgroundColor: 'rgba(52, 211, 153, 0.12)',
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 400 },
+        scales: {
+          x: {
+            grid: { color: '#1e293b' },
+            ticks: {
+              color: '#64748b',
+              maxTicksLimit: 6,
+              font: { family: 'monospace', size: 10 }
+            }
+          },
+          y: { display: false }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: true,
+            callbacks: {
+              title: (items) => `Batting Avg: ${items[0].label}`,
+              label: (item) => `Density: ${item.parsed.y.toFixed(2)}`
+            }
+          }
+        }
+      }
+    });
+
+    function initPrior() {
+      const priorAvg = parseFloat(document.getElementById('priorAvg').value);
+      const priorWeight = parseFloat(document.getElementById('priorWeight').value);
+
+      priorAlpha = priorAvg * priorWeight;
+      priorBeta = (1 - priorAvg) * priorWeight;
+
+      currentAlpha = priorAlpha;
+      currentBeta = priorBeta;
+      seasonHits = 0;
+      seasonABs = 0;
+      gamesPlayed = 0;
+      logHistory = [];
+
+      render();
+    }
+
+    function addWindow(hits, abs) {
+      if (gamesPlayed >= 160) return;
+      seasonHits += hits;
+      seasonABs += abs;
+      currentAlpha += hits;
+      currentBeta += (abs - hits); // Corrected: add outs (failures), not total ABs
+      gamesPlayed += 10;
+
+      const rawAvg = (seasonHits / seasonABs).toFixed(3);
+      const bayesAvg = (currentAlpha / (currentAlpha + currentBeta)).toFixed(3);
+
+      logHistory.unshift({
+        games: gamesPlayed,
+        segment: `${hits} for ${abs} (${(hits / abs).toFixed(3)})`,
+        raw: rawAvg,
+        bayes: bayesAvg
+      });
+
+      render();
+    }
+
+    function render() {
+      // Evaluate distributions across x-axis
+      const priorData = xValues.map(x => betaPDF(x, priorAlpha, priorBeta));
+      const postData = xValues.map(x => betaPDF(x, currentAlpha, currentBeta));
+
+      chart.data.datasets[0].data = priorData;
+      chart.data.datasets[1].data = postData;
+      chart.update();
+
+      // Update stat cards
+      const rawAvg = seasonABs > 0 ? (seasonHits / seasonABs).toFixed(3).replace(/^0/, '') : '.000';
+      const bayesMean = (currentAlpha / (currentAlpha + currentBeta)).toFixed(3).replace(/^0/, '');
+
+      document.getElementById('statObsAvg').innerText = rawAvg;
+      document.getElementById('statObsCount').innerText = `${seasonHits} H / ${seasonABs} AB`;
+      document.getElementById('statBayesAvg').innerText = bayesMean;
+      document.getElementById('statAlphaBeta').innerText = `α: ${Math.round(currentAlpha)} | β: ${Math.round(currentBeta)}`;
+      document.getElementById('statGames').innerText = gamesPlayed;
+
+            // Render history log with added spacing
+      const logContainer = document.getElementById('logContainer');
+      if (logHistory.length === 0) {
+        logContainer.innerHTML = `<div class="text-[11px] text-slate-600 italic">No games played yet. Season opens on Opening Day.</div>`;
+      } else {
+        logContainer.innerHTML = logHistory.map(entry => `
+          <div class="flex justify-between items-center py-1 text-[11px]">
+            <span class="text-slate-300 shrink-0">G${entry.games}: ${entry.segment}</span>
+            <div class="flex items-center space-x-3 text-slate-500">
+              <span>Raw: <span class="text-slate-300">${entry.raw}</span></span>
+              <span class="text-slate-700">|</span>
+              <span>Bayes: <span class="text-emerald-400 font-semibold">${entry.bayes}</span></span>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    // Event Listeners
+    document.getElementById('btnHot').addEventListener('click', () => addWindow(15, 38));
+    document.getElementById('btnAvg').addEventListener('click', () => addWindow(10, 38));
+    document.getElementById('btnCold').addEventListener('click', () => addWindow(5, 38));
+
+    document.getElementById('btnCustom').addEventListener('click', () => {
+      const h = parseInt(document.getElementById('customH').value);
+      const ab = parseInt(document.getElementById('customAB').value);
+      if (!isNaN(h) && !isNaN(ab) && ab > 0 && h <= ab) {
+        addWindow(h, ab);
+        document.getElementById('customH').value = '';
+      }
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', initPrior);
+    document.getElementById('priorAvg').addEventListener('change', initPrior);
+    document.getElementById('priorWeight').addEventListener('change', initPrior);
+
+    // Initial draw
+    initPrior();
+  </script>
+</body>
+</html>
