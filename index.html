@@ -363,4 +363,391 @@
           <label style="margin-bottom: 6px;">Quick Progression Windows</label>
           <div class="grid-3">
             <button class="btn-sample" onclick="setSample(4, 10)">Week 1 (4/10: .400)</button>
-            <button class="btn-sample" onclick="setSample
+            <button class="btn-sample" onclick="setSample(15, 50)">Month 1 (15/50: .300)</button>
+            <button class="btn-sample" onclick="setSample(160, 500)">Full Season (160/500)</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Key Metrics Ribbon -->
+      <section class="grid-3">
+        <div class="stat-box">
+          <span class="stat-label">Observed (Raw)</span>
+          <span id="statObsBA" class="stat-value" style="color: #fbbf24;">.400</span>
+          <span id="statObsCount" class="stat-sub">4 H / 10 AB</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Prior Mean</span>
+          <span id="statPriorMean" class="stat-value" style="color: #94a3b8;">.250</span>
+          <span id="statPriorWeight" class="stat-sub">300 Pseudo-AB</span>
+        </div>
+        <div class="stat-box" style="border-color: rgba(56, 189, 248, 0.4);">
+          <span class="stat-label" style="color: #38bdf8;">Bayes Estimate</span>
+          <span id="statPostMean" class="stat-value" style="color: #38bdf8;">.255</span>
+          <span id="statShrinkage" class="stat-sub">96.8% Shrunk to Prior</span>
+        </div>
+      </section>
+
+      <!-- PDF Density Canvas Plot -->
+      <section class="card" style="padding: 12px;">
+        <div class="card-header">
+          <span class="card-title">Talent Probability Density (PDF)</span>
+          <span id="statCredibleInterval" style="font-size: 10px; font-family: ui-monospace, monospace; color: #94a3b8;">95% HDI: [.207, .305]</span>
+        </div>
+        
+        <div class="canvas-container">
+          <canvas id="densityCanvas"></canvas>
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-item">
+            <span class="dot-legend" style="background-color: #64748b;"></span> Prior Beta(α₀, β₀)
+          </span>
+          <span class="legend-item">
+            <span class="dot-legend" style="background-color: #38bdf8;"></span> Posterior Beta(α₁, β₁)
+          </span>
+          <span class="legend-item">
+            <span class="dot-legend" style="background-color: #fbbf24;"></span> Observed Raw BA
+          </span>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ==================== TAB 2: GUIDE & MATH ==================== -->
+    <div id="viewDocs" style="display: none; flex-direction: column; gap: 16px;">
+      
+      <!-- The Baseball Small Sample Problem -->
+      <section class="card docs-section">
+        <h2 class="docs-h2">1. The Mystery: The April .400 Hitter</h2>
+        <p>
+          Every April, a handful of Major League hitters go 4-for-10 in their first few games and boast a blistering <strong>.400 batting average</strong>. Does anyone actually believe they are a true .400 hitter who will break Ted Williams' record? 
+        </p>
+        <div class="docs-callout">
+          <strong>The Coin Toss Problem:</strong> If you flip a coin 10 times and get 7 heads (70%), you don't conclude the coin is broken. You know 10 flips is too small a sample to overcome your prior belief that coins are 50/50. Baseball batting works the exact same way.
+        </div>
+        <p>
+          Standard batting statistics (H / AB) suffer from <strong>small sample noise</strong>. Empirical Bayes solves this by anchoring noisy early-season samples to historical prior distributions.
+        </p>
+      </section>
+
+      <!-- The Beta Distribution as a Prior -->
+      <section class="card docs-section">
+        <h2 class="docs-h2">2. The Beta Distribution as "Pseudo-At-Bats"</h2>
+        <p>
+          A batter's true underlying batting talent θ is modeled using a <strong>Beta distribution</strong>:
+        </p>
+        <div class="docs-formula">
+          θ ~ Beta(α₀, β₀)
+        </div>
+        <p>
+          The parameters α₀ and β₀ have an intuitive interpretation in baseball:
+        </p>
+        <ul class="docs-list">
+          <li><strong>α₀ (Alpha):</strong> Pseudo-hits prior to the season (e.g., <strong>75</strong>).</li>
+          <li><strong>β₀ (Beta):</strong> Pseudo-outs prior to the season (e.g., <strong>225</strong>).</li>
+          <li><strong>Total Prior Weight (α₀ + β₀):</strong> The equivalent sample size of historical data (e.g., <strong>300 pseudo-at-bats</strong>).</li>
+          <li><strong>Prior Mean:</strong> α₀ / (α₀ + β₀) = 75 / 300 = <strong>.250</strong> (league average).</li>
+        </ul>
+      </section>
+
+      <!-- The Conjugate Update Rule -->
+      <section class="card docs-section">
+        <h2 class="docs-h2">3. The Math: Beta-Binomial Conjugacy</h2>
+        <p>
+          Because the Beta distribution is the <strong>conjugate prior</strong> to the Binomial likelihood, updating your belief after observing new hits (H) and outs (AB - H) requires no complex integration—just simple arithmetic:
+        </p>
+        <div class="docs-formula">
+          α₁ = α₀ + H  and  β₁ = β₀ + (AB - H)
+        </div>
+        <p>
+          The new <strong>Bayes expected batting average</strong> is the mean of this updated distribution:
+        </p>
+        <div class="docs-formula">
+          E[θ | H, AB] = (α₀ + H) / (α₀ + β₀ + AB)
+        </div>
+      </section>
+
+      <!-- Shrinkage and Sample Weight -->
+      <section class="card docs-section">
+        <h2 class="docs-h2">4. Empirical Shrinkage in Action</h2>
+        <p>
+          The Bayes estimate can also be written as a <strong>weighted average</strong> between the player's noisy in-season average and the prior:
+        </p>
+        <div class="docs-formula" style="font-size: 11px;">
+          Bayes BA = (1 - w) × Prior Mean + w × Observed BA
+        </div>
+        <p>
+          where the weight on the new data is:
+        </p>
+        <div class="docs-formula" style="font-size: 11px;">
+          w = AB / (AB + α₀ + β₀)
+        </div>
+        <ul class="docs-list">
+          <li><strong>After 10 At-Bats (4/10):</strong> w = 10 / (10 + 300) = 3.2%. The observed .400 average receives only 3.2% weight, shrinking the estimate back to <strong>.255</strong>!</li>
+          <li><strong>After 500 At-Bats (160/500):</strong> w = 500 / (500 + 300) = 62.5%. The season data now dominates the prior, pulling the estimate close to the player's true .320 performance.</li>
+        </ul>
+      </section>
+
+    </div>
+  </main>
+
+  <script>
+    // Tab Switching
+    function switchTab(tabId) {
+      const viewSim = document.getElementById('viewSim');
+      const viewDocs = document.getElementById('viewDocs');
+      const btnSim = document.getElementById('tabBtnSim');
+      const btnDocs = document.getElementById('tabBtnDocs');
+
+      if (tabId === 'sim') {
+        viewSim.style.display = 'flex';
+        viewDocs.style.display = 'none';
+        btnSim.classList.add('active');
+        btnDocs.classList.remove('active');
+        setTimeout(drawDensityPlot, 50);
+      } else {
+        viewSim.style.display = 'none';
+        viewDocs.style.display = 'flex';
+        btnDocs.classList.add('active');
+        btnSim.classList.remove('active');
+      }
+    }
+
+    // State Variables
+    let a0 = 75;
+    let b0 = 225;
+    let hits = 4;
+    let ab = 10;
+
+    function syncInputs() {
+      a0 = Math.max(1, parseFloat(document.getElementById('priorAlpha').value) || 75);
+      b0 = Math.max(1, parseFloat(document.getElementById('priorBeta').value) || 225);
+      hits = Math.max(0, parseInt(document.getElementById('obsHits').value) || 0);
+      ab = Math.max(1, parseInt(document.getElementById('obsAB').value) || 1);
+      if (hits > ab) hits = ab;
+    }
+
+    function setSample(h, totalAB) {
+      document.getElementById('obsHits').value = h;
+      document.getElementById('obsAB').value = totalAB;
+      updateModel();
+    }
+
+    function handlePresetChange() {
+      const val = document.getElementById('priorPreset').value;
+      if (val === 'league') {
+        document.getElementById('priorAlpha').value = 75;
+        document.getElementById('priorBeta').value = 225;
+      } else if (val === 'elite') {
+        document.getElementById('priorAlpha').value = 90;
+        document.getElementById('priorBeta').value = 210;
+      } else if (val === 'uninformative') {
+        document.getElementById('priorAlpha').value = 1;
+        document.getElementById('priorBeta').value = 1;
+      }
+      updateModel();
+    }
+
+    // Log-gamma approximation for Beta PDF evaluation
+    function logGamma(z) {
+      const g = 7;
+      const C = [
+        0.99999999999980993,
+        676.5203681218851,
+        -1259.1392167224028,
+        771.32342877765313,
+        -176.61502916214059,
+        12.507343278686905,
+        -0.138571095836526,
+        9.9843695780195716e-6,
+        1.5056327351493116e-7
+      ];
+      if (z < 0.5) {
+        return Math.log(Math.PI / Math.sin(Math.PI * z)) - logGamma(1 - z);
+      }
+      z -= 1;
+      let base = C[0];
+      for (let i = 1; i < g + 2; i++) {
+        base += C[i] / (z + i);
+      }
+      const t = z + g + 0.5;
+      return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(base);
+    }
+
+    function betaPDF(x, a, b) {
+      if (x <= 0 || x >= 1) return 0;
+      const lbeta = logGamma(a) + logGamma(b) - logGamma(a + b);
+      const lval = (a - 1) * Math.log(x) + (b - 1) * Math.log(1 - x) - lbeta;
+      return Math.exp(lval);
+    }
+
+    function updateModel() {
+      syncInputs();
+
+      const a1 = a0 + hits;
+      const b1 = b0 + (ab - hits);
+
+      const rawBA = hits / ab;
+      const priorMean = a0 / (a0 + b0);
+      const postMean = a1 / (a1 + b1);
+
+      // Shrinkage percentage
+      const priorWeight = a0 + b0;
+      const dataWeight = ab;
+      const shrinkage = (priorWeight / (priorWeight + dataWeight)) * 100;
+
+      // Approximate 95% Credible Interval using standard beta variance
+      const postVar = (a1 * b1) / (Math.pow(a1 + b1, 2) * (a1 + b1 + 1));
+      const postSD = Math.sqrt(postVar);
+      const ciLow = Math.max(0, postMean - 1.96 * postSD);
+      const ciHigh = Math.min(1, postMean + 1.96 * postSD);
+
+      document.getElementById('sampleRawBA').innerText = `Observed BA: .${Math.round(rawBA * 1000).toString().padStart(3, '0')}`;
+      document.getElementById('statObsBA').innerText = `.${Math.round(rawBA * 1000).toString().padStart(3, '0')}`;
+      document.getElementById('statObsCount').innerText = `${hits} H / ${ab} AB`;
+
+      document.getElementById('statPriorMean').innerText = `.${Math.round(priorMean * 1000).toString().padStart(3, '0')}`;
+      document.getElementById('statPriorWeight').innerText = `${Math.round(priorWeight)} Pseudo-AB`;
+
+      document.getElementById('statPostMean').innerText = `.${Math.round(postMean * 1000).toString().padStart(3, '0')}`;
+      document.getElementById('statShrinkage').innerText = `${shrinkage.toFixed(1)}% Shrunk to Prior`;
+      document.getElementById('statCredibleInterval').innerText = `95% CI: [${ciLow.toFixed(3)}, ${ciHigh.toFixed(3)}]`;
+
+      drawDensityPlot();
+    }
+
+    function drawDensityPlot() {
+      const canvas = document.getElementById('densityCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const container = canvas.parentElement;
+
+      const width = container.clientWidth || 440;
+      const height = container.clientHeight || 210;
+
+      canvas.width = width * 2;
+      canvas.height = height * 2;
+      ctx.scale(2, 2);
+
+      ctx.clearRect(0, 0, width, height);
+
+      const padX = 35;
+      const padY = 25;
+      const plotW = width - padX - 15;
+      const plotH = height - padY - 20;
+
+      const xMin = 0.10;
+      const xMax = 0.45;
+
+      const a1 = a0 + hits;
+      const b1 = b0 + (ab - hits);
+
+      // Evaluate density curve points
+      const points = 120;
+      const priorPts = [];
+      const postPts = [];
+      let maxDensity = 0;
+
+      for (let i = 0; i <= points; i++) {
+        const x = xMin + (i / points) * (xMax - xMin);
+        const yPrior = betaPDF(x, a0, b0);
+        const yPost = betaPDF(x, a1, b1);
+        if (yPrior > maxDensity) maxDensity = yPrior;
+        if (yPost > maxDensity) maxDensity = yPost;
+        priorPts.push({ x, y: yPrior });
+        postPts.push({ x, y: yPost });
+      }
+
+      maxDensity = Math.max(maxDensity * 1.15, 5);
+
+      function mapX(val) {
+        return padX + ((val - xMin) / (xMax - xMin)) * plotW;
+      }
+      function mapY(val) {
+        return (height - padY) - (val / maxDensity) * plotH;
+      }
+
+      // Draw Grid / Ticks
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1;
+      const tickVals = [0.15, 0.20, 0.25, 0.30, 0.35, 0.40];
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+
+      tickVals.forEach(tv => {
+        const tx = mapX(tv);
+        ctx.beginPath();
+        ctx.moveTo(tx, padY - 5);
+        ctx.lineTo(tx, height - padY);
+        ctx.stroke();
+        ctx.fillText(`.${Math.round(tv * 1000)}`, tx, height - padY + 14);
+      });
+
+      // Draw Baseline axis
+      ctx.strokeStyle = '#334155';
+      ctx.beginPath();
+      ctx.moveTo(padX, height - padY);
+      ctx.lineTo(padX + plotW, height - padY);
+      ctx.stroke();
+
+      // 1. Draw Prior Distribution Curve (Gray)
+      ctx.strokeStyle = '#64748b';
+      ctx.fillStyle = 'rgba(100, 116, 139, 0.15)';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(mapX(priorPts[0].x), height - padY);
+      priorPts.forEach(pt => ctx.lineTo(mapX(pt.x), mapY(pt.y)));
+      ctx.lineTo(mapX(priorPts[priorPts.length - 1].x), height - padY);
+      ctx.fill();
+      ctx.stroke();
+
+      // 2. Draw Posterior Distribution Curve (Sky Blue)
+      ctx.strokeStyle = '#38bdf8';
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(mapX(postPts[0].x), height - padY);
+      postPts.forEach(pt => ctx.lineTo(mapX(pt.x), mapY(pt.y)));
+      ctx.lineTo(mapX(postPts[postPts.length - 1].x), height - padY);
+      ctx.fill();
+      ctx.stroke();
+
+      // 3. Draw Observed Raw BA Needle (Yellow / Amber)
+      const rawBA = hits / ab;
+      if (rawBA >= xMin && rawBA <= xMax) {
+        const rawX = mapX(rawBA);
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(rawX, padY - 5);
+        ctx.lineTo(rawX, height - padY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(rawX, padY - 5, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Event Listeners
+    document.getElementById('priorPreset').addEventListener('change', handlePresetChange);
+    document.getElementById('priorAlpha').addEventListener('input', updateModel);
+    document.getElementById('priorBeta').addEventListener('input', updateModel);
+    document.getElementById('obsHits').addEventListener('input', updateModel);
+    document.getElementById('obsAB').addEventListener('input', updateModel);
+    document.getElementById('resetPriorBtn').addEventListener('click', () => {
+      document.getElementById('priorPreset').value = 'league';
+      handlePresetChange();
+    });
+
+    window.addEventListener('resize', drawDensityPlot);
+
+    updateModel();
+  </script>
+</body>
+</html>
